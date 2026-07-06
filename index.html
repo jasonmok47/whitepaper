@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>백서 검수 파이프라인</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --paper:#F2F4F6; --card:#FFFFFF; --ink:#1C2530; --muted:#66707B;
+  --line:#D8DEE4; --line-soft:#E8ECF0;
+  --red:#B9382B; --red-bg:#FAE9E6; --green:#1E7A55; --green-bg:#E3F2EA;
+  --navy:#243B53; --navy-soft:#EDF1F5; --amber:#9A6A00; --amber-bg:#FBF3DF;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans KR',-apple-system,'Apple SD Gothic Neo',sans-serif;
+  background:var(--paper);color:var(--ink);font-size:14.5px;line-height:1.65;min-height:100vh}
+header{max-width:1180px;margin:0 auto;padding:34px 24px 0}
+h1{font-family:'Noto Serif KR',serif;font-weight:700;font-size:26px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin-top:4px;font-size:13.5px}
+nav{max-width:1180px;margin:26px auto 0;padding:0 24px;display:flex;gap:6px;align-items:flex-end}
+nav button{font-family:inherit;font-size:14px;font-weight:500;color:var(--muted);
+  background:#E7EBEF;border:1px solid var(--line);border-bottom:none;
+  border-radius:10px 10px 0 0;padding:10px 20px 9px;cursor:pointer;transition:background .15s}
+nav button:hover{background:#EDF0F3}
+nav button.on{background:var(--card);color:var(--ink);font-weight:600;padding-top:13px}
+main{max-width:1180px;margin:0 auto;padding:0 24px 60px}
+.panel{background:var(--card);border:1px solid var(--line);
+  border-radius:0 var(--radius) var(--radius) var(--radius);padding:28px;display:none}
+.panel.on{display:block}
+h2{font-family:'Noto Serif KR',serif;font-size:18px;font-weight:600;margin-bottom:6px}
+h4{font-size:13px;font-weight:600;color:var(--navy);margin:22px 0 2px;letter-spacing:.03em}
+.hint{color:var(--muted);font-size:13px;margin-bottom:18px}
+label{display:block;font-weight:600;font-size:13px;margin:14px 0 5px}
+label .opt{color:var(--muted);font-weight:400}
+input[type=text],input[type=password],textarea,select{width:100%;font-family:inherit;font-size:14px;color:var(--ink);
+  border:1px solid var(--line);border-radius:7px;padding:9px 11px;background:#FDFDFE}
+textarea{resize:vertical;min-height:66px;line-height:1.6}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--navy);outline-offset:-1px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px}
+@media(max-width:860px){.grid2,.grid3{grid-template-columns:1fr}}
+.btn{font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:7px;
+  padding:8px 16px;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--navy)}
+.btn.small{padding:5px 11px;font-size:12.5px}
+.btn.danger{border-color:var(--red);background:transparent;color:var(--red)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.mt{margin-top:18px}
+.fieldhead{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.fieldhead label{flex:1}
+.modeSel{width:auto!important;font-size:12px;padding:3px 6px;margin-bottom:5px;color:var(--navy);border-radius:6px}
+.req{font-size:10.5px;font-weight:700;color:#fff;background:var(--red);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.reqmiss{outline:2px solid var(--red)!important;outline-offset:-1px}
+input:disabled,textarea:disabled{background:var(--navy-soft);color:var(--muted)}
+.mdout{background:#FBFBF9;border:1px solid var(--line);border-radius:8px;
+  font-family:ui-monospace,Consolas,monospace;font-size:12.4px;line-height:1.7;
+  padding:16px;white-space:pre-wrap;max-height:640px;overflow:auto}
+.filled{color:var(--green);font-weight:600}
+.dropzone{border:2px dashed var(--line);border-radius:10px;padding:38px 20px;text-align:center;
+  color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s}
+.dropzone:hover,.dropzone.drag{border-color:var(--navy);background:var(--navy-soft)}
+.apibox{border:1px solid var(--line);border-radius:8px;padding:16px 18px;background:var(--navy-soft);margin-top:18px}
+.warn{background:var(--amber-bg);color:var(--amber);border-radius:7px;padding:9px 13px;font-size:12.8px;margin-top:10px}
+.slidegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}
+.scard{border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:12px;cursor:pointer;background:#FDFDFE}
+.scard.sel{border-color:var(--navy);background:var(--navy-soft)}
+.scard .sn{font-family:'Noto Serif KR',serif;font-weight:700;font-size:12.5px}
+.scard .snip{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scard .st{font-size:11px;font-weight:600;margin-top:2px;display:block}
+.st.wait{color:var(--muted)}.st.run{color:var(--navy)}.st.done{color:var(--green)}
+.st.err{color:var(--red)}.st.warnst{color:var(--amber)}
+.progress{height:8px;background:#DFE5EB;border-radius:4px;overflow:hidden;margin-top:14px}
+.progress i{display:block;height:100%;width:0;background:var(--green);transition:width .3s}
+.result{border:1px solid var(--line);border-radius:8px;margin-top:14px;overflow:hidden}
+.result summary{padding:11px 15px;cursor:pointer;font-weight:600;font-size:13.5px;background:#FAFBFC;list-style:none;display:flex;gap:10px;align-items:center}
+.result summary::before{content:'▸';color:var(--muted)}
+.result[open] summary::before{content:'▾'}
+.result .body{padding:14px 16px;border-top:1px solid var(--line-soft);font-size:13px}
+.result .body h5{font-size:12px;color:var(--navy);margin:10px 0 4px}
+.result .body ul{margin-left:18px}
+.diffline{white-space:pre-wrap;word-break:break-word;line-height:1.85;background:#FFFEFB;border:1px solid var(--line-soft);border-radius:6px;padding:10px 12px;margin-top:4px}
+.del{background:var(--red-bg);color:var(--red);text-decoration:line-through;border-radius:3px}
+.ins{background:var(--green-bg);color:var(--green);border-radius:3px;box-shadow:inset 0 -2px 0 var(--green)}
+.badge{font-size:11px;font-weight:600;border-radius:4px;padding:1px 7px}
+.badge.ok{background:var(--green-bg);color:var(--green)}
+.badge.warnb{background:var(--amber-bg);color:var(--amber)}
+.badge.errb{background:var(--red-bg);color:var(--red)}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(80px);
+  background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;
+  transition:transform .25s;z-index:50}
+.toast.show{transform:translateX(-50%) translateY(0)}
+footer{max-width:1180px;margin:0 auto;padding:14px 24px 40px;color:var(--muted);font-size:12px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>백서 검수 파이프라인</h1>
+  <div class="sub">검수 프롬프트 작성 → PPT 슬라이드 자동 검수 (Claude · ChatGPT · Gemini)</div>
+</header>
+
+<nav>
+  <button class="on" data-tab="prompt">① 검수 프롬프트 작성</button>
+  <button data-tab="pipeline">② PPT 자동 검수</button>
+</nav>
+
+<main>
+
+<!-- ① PROMPT BUILDER -->
+<section class="panel on" id="tab-prompt">
+  <h2>검수 프롬프트 작성</h2>
+  <div class="hint">기본 md 템플릿의 [[빈칸]]에 해당하는 항목만 입력하면 완성된 프롬프트가 오른쪽(하단)에 생성됩니다. 비워둔 항목은 [[원문 표기]] 그대로 남습니다. 완성본은 복사·다운로드하거나, ② 탭의 PPT 자동 검수에 그대로 사용됩니다.</div>
+  <div class="grid2">
+    <div>
+      <h4>① 문서 프로필 (백서당 1회)</h4>
+      <label>백서 주제<span class="req">필수</span></label><input type="text" id="f_topic" placeholder="예: DR/재해복구 아키텍처">
+      <label>타깃 도메인<span class="req">필수</span></label><input type="text" id="f_domain" placeholder="공공 / 금융 / 제조 / 기타">
+      <label>제품 카테고리<span class="req">필수</span></label><input type="text" id="f_category" placeholder="IaaS / PaaS / DevOps / DR / 기타">
+      <label>타깃 독자<span class="req">필수</span></label><input type="text" id="f_audience" placeholder="예: 공공기관 IT 인프라 의사결정권자">
+      <label>홍보 대상 자사 제품/솔루션<span class="req">필수</span></label><textarea id="f_products" placeholder="예: CONTRABASS, CONTRABASS Legato DR"></textarea>
+      <div class="fieldhead"><label>파트너 제품 (역할 경계 명시)</label><select class="modeSel" id="m_f_partners" onchange="modeChanged('f_partners')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <textarea id="f_partners" disabled placeholder="예: NetApp MetroCluster/SnapMirror — 스토리지 계층 담당. 없으면 비워두기 → 없음"></textarea>
+      <div class="fieldhead"><label>고정 도메인 용어</label><select class="modeSel" id="m_f_terms" onchange="modeChanged('f_terms')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <textarea id="f_terms" disabled placeholder="예: 보호 그룹, 복구 계획, RTO/RPO, DR 오케스트레이션, 모의 훈련"></textarea>
+      <div class="fieldhead"><label>스타일 레퍼런스 <button type="button" class="btn ghost small" onclick="pickFile('f_style')">파일 불러오기</button></label><select class="modeSel" id="m_f_style" onchange="modeChanged('f_style')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <textarea id="f_style" disabled placeholder="따라야 할 기존 백서 발췌 — 직접 붙여넣거나 파일(.txt .md .docx)로 불러오기"></textarea>
+
+      <h4>② 보조 입력 자료</h4>
+      <label>Solution/Reference 원천 자료<span class="req">필수</span> <button type="button" class="btn ghost small" onclick="pickFile('f_source')">파일 불러오기</button></label>
+      <textarea id="f_source" placeholder="원천 자료를 붙여넣거나 파일(.txt .md .docx)로 불러오기"></textarea>
+
+      <h4>③ 이번 실행 정보</h4>
+      <div class="fieldhead"><label>검수 대상 섹션 <span class="opt">(PPT 자동 검수 시 슬라이드 번호로 자동 대체)</span></label><select class="modeSel" id="m_f_section" onchange="modeChanged('f_section')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <input type="text" id="f_section" disabled placeholder="예: Trend #2 / Painpoint #1 / 4.1 검증 사례">
+      <div class="fieldhead"><label>직전 문맥 <span class="opt">(PPT 자동 검수 시 이전 슬라이드로 자동 대체)</span></label><select class="modeSel" id="m_f_prev" onchange="modeChanged('f_prev')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <textarea id="f_prev" disabled placeholder="이전 섹션 마지막 문단, 첫 섹션이면 비워두기 → 없음"></textarea>
+      <div class="grid3">
+        <div><div class="fieldhead"><label>수정 허용 한도 (%)</label><select class="modeSel" id="m_f_budget" onchange="modeChanged('f_budget')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div><input type="text" id="f_budget" value="15" disabled></div>
+        <div><div class="fieldhead"><label>문장당 최대 변경 횟수</label><select class="modeSel" id="m_f_wordmax" onchange="modeChanged('f_wordmax')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div><input type="text" id="f_wordmax" value="2" disabled></div>
+        <div><label>출력 모드</label>
+          <select id="f_mode"><option>REWRITE</option><option>DIFF</option><option value="auto" selected>자동</option></select></div>
+      </div>
+
+      <h4>④ 보정 예시</h4>
+      <div class="fieldhead"><label>[BEFORE] 원문 문단</label><select class="modeSel" id="m_f_before" onchange="modeChanged('f_before')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <textarea id="f_before" disabled></textarea>
+      <div class="fieldhead"><label>[AFTER] 직접 고친 최종본</label><select class="modeSel" id="m_f_after" onchange="modeChanged('f_after')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <textarea id="f_after" disabled></textarea>
+      <div class="fieldhead"><label>[BAD] 과도한 수정 예시</label><select class="modeSel" id="m_f_bad" onchange="modeChanged('f_bad')"><option value="manual">직접 입력</option><option value="auto" selected>자동</option></select></div>
+      <textarea id="f_bad" disabled></textarea>
+
+      <h4>⑨ 검수 대상 원문</h4>
+      <label>원문<span class="req">필수</span> <button type="button" class="btn ghost small" onclick="pickFile('f_text')">파일 불러오기</button> <span class="opt">(PPT 자동 검수 시에는 슬라이드 텍스트가 자동으로 들어가므로 생략 가능)</span></label>
+      <textarea id="f_text" style="min-height:110px" placeholder="원문을 붙여넣거나 파일(.txt .md .docx)로 불러오기"></textarea>
+      <input type="file" id="fieldFile" accept=".txt,.md,.docx" style="display:none" onchange="fieldFileChosen(this)">
+    </div>
+    <div>
+      <label style="margin-top:14px">완성된 프롬프트 (md) <span class="opt" id="fillCount"></span></label>
+      <div class="mdout" id="mdPreview"></div>
+      <div class="row mt">
+        <button class="btn" onclick="copyMd()">복사</button>
+        <button class="btn ghost" onclick="downloadMd()">.md 다운로드</button>
+        <button class="btn ghost" onclick="document.getElementById('mdImport').click()">작성값 불러오기(.json)</button>
+        <button class="btn ghost" onclick="exportFields()">작성값 저장(.json)</button>
+        <input type="file" id="mdImport" accept=".json" style="display:none" onchange="importFields(this)">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ② PIPELINE -->
+<section class="panel" id="tab-pipeline">
+  <h2>PPT 자동 검수</h2>
+  <div class="hint">.pptx를 올리고 API 키를 입력하면, ① 탭에서 작성한 프롬프트를 각 슬라이드 텍스트에 적용해 AI 검수를 실행하고, 결과가 반영된 .pptx를 돌려받습니다. 파일과 API 키는 이 브라우저에서 선택한 AI 제공사로만 직접 전송되며, 다른 서버를 거치지 않습니다.</div>
+
+  <div class="dropzone" id="dropzone" onclick="document.getElementById('pptFile').click()">
+    여기를 클릭하거나 .pptx 파일을 끌어다 놓으세요
+    <input type="file" id="pptFile" accept=".pptx" style="display:none" onchange="loadPptx(this.files[0])">
+  </div>
+
+  <div id="work" style="display:none">
+    <div class="row" style="margin-top:4px">
+      <span id="pptName" style="font-weight:600"></span>
+      <button class="btn danger small" onclick="closePptx()" style="margin-left:auto">파일 닫기</button>
+    </div>
+
+    <div class="apibox">
+      <div class="grid3">
+        <div><label style="margin-top:0">AI 제공사</label>
+          <select id="provider" onchange="providerChanged()">
+            <option value="claude">Claude (Anthropic)</option>
+            <option value="openai">ChatGPT (OpenAI)</option>
+            <option value="gemini">Gemini (Google)</option>
+          </select></div>
+        <div><label style="margin-top:0">모델</label><input type="text" id="model" value="claude-sonnet-4-6"></div>
+        <div><label style="margin-top:0">API 키</label><input type="password" id="apikey" placeholder="본인 API 키 입력" autocomplete="off"></div>
+      </div>
+      <div class="warn">API 키는 저장되지 않고 이 탭이 열려 있는 동안만 메모리에 유지되며, 선택한 제공사에만 전송됩니다. 공용 PC에서는 사용 후 탭을 닫으세요. 키를 이 페이지 코드에 직접 심어 배포하지 마세요 — 공개 URL에서는 누구나 코드를 볼 수 있습니다.</div>
+    </div>
+
+    <label style="margin-top:20px">검수할 슬라이드 선택 <span class="opt">(클릭으로 선택/해제)</span></label>
+    <div class="row" style="margin-top:2px">
+      <button class="btn ghost small" onclick="selAll(true)">전체 선택</button>
+      <button class="btn ghost small" onclick="selAll(false)">전체 해제</button>
+    </div>
+    <div class="slidegrid" id="slideGrid"></div>
+
+    <div class="row mt">
+      <button class="btn" id="runBtn" onclick="runPipeline()">검수 실행</button>
+      <button class="btn danger" id="stopBtn" onclick="stopFlag=true" style="display:none">중지</button>
+      <button class="btn ghost" id="dlBtn" onclick="exportPptx()" disabled>검수 반영 .pptx 다운로드</button>
+      <button class="btn ghost" id="rptBtn" onclick="downloadReport()" disabled>감사 보고서 다운로드 (.md)</button>
+    </div>
+    <div class="progress"><i id="progBar"></i></div>
+    <div id="results"></div>
+  </div>
+</section>
+
+</main>
+
+<footer>이 페이지는 서버 없이 브라우저에서만 동작합니다. 작성값과 결과는 페이지를 닫으면 사라지므로, 작성값 저장(.json)과 결과 파일 다운로드로 보관하세요.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- utils ---------- */
+let toastT;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2400)}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000)}
+function v(id){return document.getElementById(id).value.trim()}
+
+document.querySelectorAll('nav button[data-tab]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('nav button[data-tab]').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');document.getElementById('tab-'+b.dataset.tab).classList.add('on');
+}));
+
+/* ---------- ① template ---------- */
+const FIELDS=['f_topic','f_domain','f_category','f_audience','f_products','f_partners','f_terms','f_style','f_source','f_section','f_prev','f_budget','f_wordmax','f_mode','f_before','f_after','f_bad','f_text'];
+const REQUIRED={f_topic:'백서 주제',f_domain:'타깃 도메인',f_category:'제품 카테고리',f_audience:'타깃 독자',f_products:'홍보 대상 자사 제품/솔루션',f_source:'Solution/Reference 원천 자료',f_text:'검수 대상 원문'};
+const PIPELINE_EXEMPT=['f_text']; // PPT 자동 검수는 슬라이드 텍스트가 원문을 대체
+const AUTO_FIELDS=['f_partners','f_terms','f_style','f_section','f_prev','f_budget','f_wordmax','f_before','f_after','f_bad'];
+const AUTO_TXT='자동 — 검수 AI가 문서 맥락에 맞춰 적절히 판단하십시오';
+function isAuto(id){
+  if(id==='f_mode')return document.getElementById('f_mode').value==='auto';
+  const m=document.getElementById('m_'+id);return !!m&&m.value==='auto';
+}
+function modeChanged(id){
+  const el=document.getElementById(id);
+  el.disabled=isAuto(id);
+  renderMd();
+}
+function fieldVal(id,def){
+  if(isAuto(id))return AUTO_TXT;
+  return v(id)||def;
+}
+function missingRequired(scope){
+  return Object.keys(REQUIRED)
+    .filter(id=>!(scope==='pipeline'&&PIPELINE_EXEMPT.includes(id)))
+    .filter(id=>!v(id));
+}
+
+/* ----- file → field loader (.txt .md .docx) ----- */
+const W_NS='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+let fileTarget=null;
+function pickFile(id){
+  fileTarget=id;
+  if(isAuto(id)){const m=document.getElementById('m_'+id);if(m){m.value='manual';modeChanged(id);}}
+  document.getElementById('fieldFile').click();
+}
+async function fieldFileChosen(input){
+  const f=input.files[0];input.value='';
+  if(!f||!fileTarget)return;
+  try{
+    let text='';
+    if(/\.docx$/i.test(f.name)){
+      const zip=await JSZip.loadAsync(f);
+      const entry=zip.file('word/document.xml');
+      if(!entry)throw new Error('no document.xml');
+      const doc=new DOMParser().parseFromString(await entry.async('string'),'application/xml');
+      const paras=[];
+      for(const p of doc.getElementsByTagNameNS(W_NS,'p')){
+        let t='';for(const tn of p.getElementsByTagNameNS(W_NS,'t'))t+=tn.textContent;
+        paras.push(t);
+      }
+      text=paras.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+    }else if(/\.(txt|md)$/i.test(f.name)){
+      text=await f.text();
+    }else{toast('.txt, .md, .docx 파일만 지원합니다 (한글 .hwp, PDF는 텍스트로 변환 후 사용)');return}
+    if(!text.trim()){toast('파일에서 텍스트를 찾지 못했습니다');return}
+    document.getElementById(fileTarget).value=text;
+    renderMd();
+    toast(f.name+' 내용을 불러왔습니다');
+  }catch(e){toast('파일을 읽지 못했습니다 — 손상되지 않은 파일인지 확인하세요')}
+}
+
+function buildMd(o){
+  o=o||{};
+  const g=(id,def)=>o[id]!==undefined?o[id]:fieldVal(id,def);
+  const badBlock = g('f_bad','') ?
+`
+
+과도한 수정 — 절대 금지:
+[BAD]    ${g('f_bad','')}` : '';
+  const budgetAuto = o.f_budget===undefined && (isAuto('f_budget')||isAuto('f_wordmax'));
+  const budgetLine = budgetAuto
+    ? `수정 허용 한도: 자동 — 검수 AI가 문서 성격에 맞게 보수적으로 판단하되,
+연결부·흐름 수준을 넘는 과도한 수정은 금지.`
+    : `수정 허용 한도: 전체 글자 수의 ${g('f_budget','15')}% 이내 변경. 문장당 단어 수준 변경
+최대 ${g('f_wordmax','2')}회 (접속사·연결어 제외).`;
+  const modeVal = o.f_mode!==undefined ? o.f_mode
+    : (document.getElementById('f_mode').value==='auto'
+        ? '자동 — 원문 완성도에 따라 검수 AI가 REWRITE/DIFF 중 선택'
+        : v('f_mode')||'REWRITE');
+  return `당신은 엔터프라이즈 클라우드 기업의 시니어 테크니컬 에디터이자 IT 컨설턴트입니다.
+한국 시장을 대상으로 한 공식 B2B 백서를 컨설팅 기업의 비즈니스 리포트 스타일 —
+중립적, 사실 기반, 근거 중심 — 으로 작성·검수합니다.
+
+═══════════════ ① 문서 프로필 (백서당 1회 작성) ═══════════════
+
+백서 주제: ${g('f_topic','[[필수 미작성 — 백서 주제]]')}
+타깃 도메인: ${g('f_domain','[[필수 미작성 — 타깃 도메인]]')}
+제품 카테고리: ${g('f_category','[[필수 미작성 — 제품 카테고리]]')}
+타깃 독자: ${g('f_audience','[[필수 미작성 — 타깃 독자]]')}
+홍보 대상 자사 제품/솔루션 (표기 그대로 사용):
+${g('f_products','[[필수 미작성 — 자사 제품/솔루션]]')}
+파트너 제품 (있는 경우, 역할 경계는 정확히 유지):
+${g('f_partners','없음')}
+고정 도메인 용어 (번역·치환·변형 금지):
+${g('f_terms','[[예: 보호 그룹, 복구 계획, RTO/RPO, DR 오케스트레이션, 모의 훈련 등]]')}
+스타일 레퍼런스 (선택 — 이 문서가 따라야 할 기존 백서 발췌, 없으면 "없음"):
+${g('f_style','없음')}
+
+═══════════════ ② 백서 필수 구조 ═══════════════
+
+문서는 아래 구조를 따라야 하며, 이를 검수 기준으로 삼습니다:
+
+  1. Executive Summary — 목적, 독자, 핵심 메시지를 반 페이지 내외로
+  2. Trend #1–3 — 타깃 도메인에서 현재 가장 크게 논의되거나 우려되는 동향
+     (한국 시장의 해당 업계 독자에게 시의성 있게 느껴져야 하며,
+      범용적인 글로벌 상투 문구는 결함으로 간주)
+  3. Painpoint #1–3 — 타깃 독자가 실제로 겪는 구체적 문제.
+     각 항목은 최소 하나의 Trend와 연결되어야 함
+  4. Solution #1–3 — 각 항목은 특정 Painpoint를 직접 해소해야 하며,
+     홍보 대상 자사 제품이 해결의 중심이어야 함
+  5. Reference #1–2 — 실제 구축 아키텍처 또는 실 구현 사례
+
+연결 규칙: Trend → Painpoint → Solution은 추적 가능한 사슬을 이뤄야 합니다.
+Painpoint와 연결되지 않는 Solution, Trend 근거가 없는 Painpoint는
+구조적 결함이므로 반드시 지적하십시오.
+
+보조 입력 자료 (Solution/Reference 원천 자료 — 해당 섹션은 반드시
+이 자료만 근거로 하며, 임의로 세부 내용을 생성하지 마십시오.
+해당 없으면 "없음"):
+${g('f_source','[[필수 미작성 — Solution/Reference 원천 자료]]')}
+
+═══════════════ ③ 이번 실행 정보 (매번 작성) ═══════════════
+
+검수 대상 섹션: ${g('f_section','[[예: Trend #2 / Painpoint #1 / 4.1 검증 사례]]')}
+직전 문맥 (이전 섹션의 마지막 문단, 첫 섹션이면 "없음"):
+${g('f_prev','없음')}
+${budgetLine}
+출력 모드: ${modeVal}
+  REWRITE = 전체 수정본 · DIFF = 원문 → 수정안 목록만
+  (이미 다듬어진 섹션은 DIFF 권장)
+
+═══════════════ ④ 보정 예시 ═══════════════
+
+올바른 수정 강도 (내용 동일, 흐름만 조정):
+[BEFORE] ${g('f_before','[[원문 문단]]')}
+[AFTER]  ${g('f_after','[[직접 고친 최종본]]')}${badBlock}
+
+═══════════════ ⑤ 1차 검수 — 구조·논리 감사 ═══════════════
+
+수정 전, 아래를 먼저 간결한 불릿으로 보고하십시오:
+- 흐름: 각 문단이 앞 문단에서 자연스럽게 이어지는가?
+  논리 공백, 전제 없는 주장, 중복, 순서 문제, 상충 진술을 지적.
+- 구조 (Trend/Painpoint/Solution 섹션 검수 시):
+  · Trend — 해당 도메인의 한국 시장에서 실제로 시의성·중요도가 높은가,
+    아니면 범용 상투 문구인가?
+  · Painpoint — Trend와의 연결이 명시적인가? 타깃 독자가 실제로
+    당면한 문제인가?
+  · Solution — 연결된 Painpoint를 직접 해소하는가? 자사 제품과
+    파트너 제품의 역할 구분이 정확한가?
+  · Reference — 모든 주장이 보조 입력 자료에서 추적 가능한가?
+- 논리·구조 문제를 임의로 고쳐 쓰지 마십시오. 지적하고 수정안을
+  제안한 뒤 승인을 기다리십시오.
+
+═══════════════ ⑥ 2차 검수 — 자연스러운 흐름 교정 ═══════════════
+
+절대 보존 (위반 시 실패로 간주):
+- 모든 내용, 주장, 수치, 통계, 고유명사, 제품·파트너 역할 경계.
+  추가·삭제·완화 금지.
+- 고정 도메인 용어는 표기 그대로 유지.
+- 문장 수준 표현은 최대한 유지. 문단 경계는 1차 검수에서 지적되고
+  승인된 경우에만 변경.
+
+변경 허용 범위:
+- 연결부만: 접속사, 문장 시작부, 문단 간 전환 — AI가 쓴 글이 아니라
+  숙련된 컨설턴트가 쓴 글처럼 읽히도록.
+- AI 특유 패턴 제거: 상투적 서두, 연속 문장의 기계적 병렬 구조,
+  과도한 완곡 표현, 공허한 강조어 (매우, 혁신적인 등), 불필요한
+  구조 안내형 전환어 (다음으로, 마지막으로 등).
+- 문체: 한국 엔터프라이즈 시장 대상의 중립적·사실 기반 컨설팅
+  리포트 톤. 마케팅·광고성 표현 금지.
+
+═══════════════ ⑦ 자체 점검 (출력 전 필수) ═══════════════
+
+1. 원문의 모든 수치, 통계, 제품명, 기관명을 나열하고 출력물에서
+   변경 없이 유지되었는지 확인.
+2. 흐름이 아닌 의미가 바뀐 문장이 있으면 나열하고 원복.
+3. 새로운 사실 주장이 추가되지 않았는지 확인. Solution/Reference
+   섹션은 모든 주장이 보조 입력 자료로 추적되는지 확인.
+4. 수정 허용 한도 준수 여부 확인. 초과 시 축소 수정.
+
+═══════════════ ⑧ 출력 형식 ═══════════════
+
+1. 구조·논리 감사 결과 (간결한 불릿)
+2. 자체 점검 결과 (간결하게)
+3. 수정본 또는 DIFF 목록 (바로 붙여넣기 가능, 본문 내 주석 금지)
+4. 변경 로그: 3–5줄, 연결부·흐름 변경 사항만
+
+═══════════════ ⑨ 검수 대상 원문 ═══════════════
+"""
+${g('f_text','[[필수 미작성 — 검수 대상 원문]]')}
+"""`;
+}
+function renderMd(){
+  const md=buildMd();
+  document.getElementById('mdPreview').textContent=md;
+  const miss=missingRequired();
+  Object.keys(REQUIRED).forEach(id=>document.getElementById(id).classList.toggle('reqmiss',!v(id)));
+  const fc=document.getElementById('fillCount');
+  if(miss.length){fc.textContent='(필수 미작성: '+miss.map(id=>REQUIRED[id]).join(', ')+')';fc.style.color='var(--red)';}
+  else{fc.textContent='(필수 항목 작성 완료)';fc.style.color='var(--green)';}
+}
+FIELDS.forEach(id=>document.getElementById(id).addEventListener('input',renderMd));
+document.getElementById('f_mode').addEventListener('change',renderMd);
+renderMd();
+function copyMd(){
+  if(!guardRequired())return;
+  navigator.clipboard.writeText(buildMd()).then(()=>toast('프롬프트가 복사되었습니다')).catch(()=>toast('복사 실패'))}
+function downloadMd(){
+  if(!guardRequired())return;
+  dl(new Blob([buildMd()],{type:'text/markdown'}),(v('f_topic')||'whitepaper')+'-review-prompt.md');toast('.md 파일을 저장했습니다')}
+function guardRequired(scope){
+  const miss=missingRequired(scope);
+  if(miss.length){toast('필수 항목을 먼저 작성하세요: '+miss.map(id=>REQUIRED[id]).join(', '));return false}
+  return true;
+}
+function exportFields(){
+  const data={fields:Object.fromEntries(FIELDS.map(id=>[id,v(id)])),
+    modes:Object.fromEntries(AUTO_FIELDS.map(id=>[id,isAuto(id)?'auto':'manual'])),
+    mode_select:document.getElementById('f_mode').value};
+  dl(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'prompt-fields.json');
+  toast('작성값을 저장했습니다');
+}
+function importFields(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);
+    const flds=d.fields||d; // backward compatible with old flat format
+    FIELDS.forEach(id=>{if(flds[id]!==undefined)document.getElementById(id).value=flds[id]});
+    if(d.modes)AUTO_FIELDS.forEach(id=>{const m=document.getElementById('m_'+id);
+      if(m&&d.modes[id]){m.value=d.modes[id];document.getElementById(id).disabled=d.modes[id]==='auto'}});
+    if(d.mode_select)document.getElementById('f_mode').value=d.mode_select;
+    renderMd();toast('작성값을 불러왔습니다');
+  }catch(e){toast('불러오기 실패 — 올바른 파일인지 확인하세요')}};
+  r.readAsText(f);input.value='';
+}
+
+/* ---------- pptx ---------- */
+const A_NS='http://schemas.openxmlformats.org/drawingml/2006/main';
+const P={zip:null,name:'',slides:[]};
+let stopFlag=false;
+
+const dz=document.getElementById('dropzone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');
+  const f=e.dataTransfer.files[0];if(f)loadPptx(f)});
+
+async function loadPptx(file){
+  if(!file)return;
+  if(!/\.pptx$/i.test(file.name)){toast('.pptx 파일만 지원합니다 (.ppt는 PowerPoint에서 .pptx로 저장 후 사용)');return}
+  try{
+    const zip=await JSZip.loadAsync(file);
+    const paths=Object.keys(zip.files)
+      .filter(p=>/^ppt\/slides\/slide\d+\.xml$/.test(p))
+      .sort((a,b)=>(+a.match(/\d+/g).pop())-(+b.match(/\d+/g).pop()));
+    if(!paths.length){toast('슬라이드를 찾을 수 없습니다');return}
+    const parser=new DOMParser();P.slides=[];
+    for(const path of paths){
+      const xml=await zip.file(path).async('string');
+      const doc=parser.parseFromString(xml,'application/xml');
+      const paras=[];
+      for(const pn of doc.getElementsByTagNameNS(A_NS,'p')){
+        const ts=pn.getElementsByTagNameNS(A_NS,'t');
+        if(!ts.length)continue;
+        let txt='';for(const t of ts)txt+=t.textContent;
+        paras.push({node:pn,orig:txt});
+      }
+      const text=paras.map(x=>x.orig).join('\n');
+      P.slides.push({path,doc,paras,text,sel:text.trim().length>0,status:'wait',
+        revised:null,audit:null,changelog:null,selfcheck:null,note:''});
+    }
+    P.zip=zip;P.name=file.name;
+    document.getElementById('pptName').textContent=file.name+' · 슬라이드 '+P.slides.length+'장';
+    document.getElementById('dropzone').style.display='none';
+    document.getElementById('work').style.display='block';
+    document.getElementById('results').innerHTML='';
+    document.getElementById('dlBtn').disabled=true;
+    document.getElementById('rptBtn').disabled=true;
+    renderGrid();
+    toast('PPT를 불러왔습니다 — 텍스트가 있는 슬라이드가 자동 선택되었습니다');
+  }catch(e){toast('파일을 읽지 못했습니다 — 손상되지 않은 .pptx인지 확인하세요')}
+}
+function renderGrid(){
+  const stTxt={wait:'대기',run:'검수 중…',done:'완료',err:'오류',warnst:'주의',skip:'제외'};
+  document.getElementById('slideGrid').innerHTML=P.slides.map((s,i)=>{
+    const snip=(s.text.split('\n').find(l=>l.trim())||'(텍스트 없음)').slice(0,22);
+    const stc=s.status==='warnst'?'warnst':s.status;
+    return `<div class="scard ${s.sel?'sel':''}" onclick="toggleSel(${i})">
+      <span class="sn">슬라이드 ${i+1}</span>
+      <span class="snip">${esc(snip)}</span>
+      <span class="st ${stc}">${stTxt[s.status]||''}</span></div>`;
+  }).join('');
+}
+function toggleSel(i){if(document.getElementById('stopBtn').style.display!=='none')return;
+  P.slides[i].sel=!P.slides[i].sel;renderGrid()}
+function selAll(on){P.slides.forEach(s=>s.sel=on&&s.text.trim().length>0);renderGrid()}
+function closePptx(){
+  P.zip=null;P.slides=[];
+  document.getElementById('work').style.display='none';
+  document.getElementById('dropzone').style.display='block';
+  document.getElementById('pptFile').value='';
+}
+
+/* ---------- AI calls ---------- */
+const MODEL_DEFAULTS={claude:'claude-sonnet-4-6',openai:'gpt-4o',gemini:'gemini-2.0-flash'};
+function providerChanged(){document.getElementById('model').value=MODEL_DEFAULTS[v('provider')]}
+
+async function callAI(provider,key,model,prompt){
+  let r,d;
+  if(provider==='claude'){
+    r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',
+      headers:{'content-type':'application/json','x-api-key':key,
+        'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({model,max_tokens:8000,messages:[{role:'user',content:prompt}]})});
+    d=await r.json();
+    if(d.error)throw new Error(d.error.message||'Claude API 오류');
+    return (d.content||[]).map(c=>c.text||'').join('');
+  }
+  if(provider==='openai'){
+    r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',
+      headers:{'content-type':'application/json','authorization':'Bearer '+key},
+      body:JSON.stringify({model,messages:[{role:'user',content:prompt}]})});
+    d=await r.json();
+    if(d.error)throw new Error(d.error.message||'OpenAI API 오류');
+    return d.choices[0].message.content;
+  }
+  if(provider==='gemini'){
+    r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent',
+      {method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+    d=await r.json();
+    if(d.error)throw new Error(d.error.message||'Gemini API 오류');
+    return d.candidates[0].content.parts.map(p=>p.text||'').join('');
+  }
+  throw new Error('알 수 없는 제공사');
+}
+
+function parseAiJson(raw){
+  let s=raw.replace(/```json|```/g,'').trim();
+  const a=s.indexOf('{'),b=s.lastIndexOf('}');
+  if(a===-1||b===-1)throw new Error('JSON 형식을 찾지 못했습니다');
+  return JSON.parse(s.slice(a,b+1));
+}
+
+function pipelinePrompt(slideIdx){
+  const s=P.slides[slideIdx];
+  const prevSlide=slideIdx>0?P.slides[slideIdx-1]:null;
+  const prevCtx=prevSlide?(prevSlide.text.split('\n').filter(l=>l.trim()).slice(-2).join(' ')||'없음'):'없음';
+  const base=buildMd({
+    f_section:'슬라이드 '+(slideIdx+1)+' (PPT 슬라이드 텍스트)',
+    f_prev:prevCtx,
+    f_mode:'REWRITE',
+    f_text:s.text
+  });
+  return base+`
+
+═══════════════ ⑩ 자동 파이프라인 출력 규칙 (⑧보다 우선) ═══════════════
+
+이 실행은 자동 파이프라인입니다. 사람이 읽는 보고서 대신, 아래 JSON 객체
+"하나만" 출력하십시오. JSON 앞뒤에 어떤 텍스트·마크다운 펜스도 붙이지 마십시오.
+
+{"audit":["1차 검수(구조·논리 감사) 발견 사항, 없으면 \\"논리 흐름 이상 없음\\""],
+"selfcheck":["자체 점검 4개 항목의 결과 요약"],
+"changelog":["연결부·흐름 변경 사항 3~5줄"],
+"revised":"수정본 전체 텍스트"}
+
+revised 필수 규칙:
+- 원문은 ${s.paras.length}줄(한 줄 = 슬라이드의 한 문단)입니다.
+  revised도 정확히 ${s.paras.length}줄이어야 하며, 줄바꿈은 \\n으로 표기합니다.
+- 줄의 순서와 개수를 바꾸지 마십시오. 슬라이드 텍스트이므로 각 줄의
+  길이도 원문과 비슷하게 유지하십시오.
+- 수정할 필요가 없는 줄은 원문 그대로 두십시오.`;
+}
+
+/* ---------- run ---------- */
+async function runPipeline(){
+  if(!P.slides.length)return;
+  if(!guardRequired('pipeline')){
+    document.querySelector('[data-tab=prompt]').click();
+    return;
+  }
+  const key=v('apikey');
+  if(!key){toast('API 키를 입력하세요');return}
+  const targets=P.slides.map((s,i)=>s.sel?i:-1).filter(i=>i>=0);
+  if(!targets.length){toast('검수할 슬라이드를 선택하세요');return}
+  const provider=v('provider'),model=v('model');
+  stopFlag=false;
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('stopBtn').style.display='inline-block';
+  document.getElementById('results').innerHTML='';
+  let done=0;
+  for(const i of targets){
+    if(stopFlag){P.slides[i].status='wait';continue}
+    const s=P.slides[i];
+    s.status='run';renderGrid();
+    try{
+      const raw=await callAI(provider,key,model,pipelinePrompt(i));
+      const j=parseAiJson(raw);
+      s.audit=j.audit||[];s.selfcheck=j.selfcheck||[];s.changelog=j.changelog||[];
+      s.revised=String(j.revised||'');
+      const lines=s.revised.split('\n').length;
+      if(lines!==s.paras.length){
+        s.status='warnst';
+        s.note='줄 수 불일치 (원본 '+s.paras.length+'줄 / 결과 '+lines+'줄) — .pptx 내보내기 시 이 슬라이드는 원본 유지';
+      }else{s.status='done';s.note=''}
+    }catch(e){
+      s.status='err';s.note=e.message||'API 호출 실패';
+      s.revised=null;
+    }
+    done++;renderGrid();renderResult(i);
+    document.getElementById('progBar').style.width=Math.round(done/targets.length*100)+'%';
+  }
+  document.getElementById('runBtn').disabled=false;
+  document.getElementById('stopBtn').style.display='none';
+  const ok=P.slides.some(s=>s.status==='done');
+  document.getElementById('dlBtn').disabled=!ok;
+  document.getElementById('rptBtn').disabled=!P.slides.some(s=>s.audit);
+  toast(stopFlag?'중지되었습니다':'검수가 끝났습니다');
+}
+
+/* simple word diff for result preview */
+function tokenize(s){return s.match(/\s+|[가-힣]+|[A-Za-z0-9._%/\-]+|./gs)||[]}
+function diffHtml(aStr,bStr){
+  let a=tokenize(aStr),b=tokenize(bStr);
+  if(a.length*b.length>4000000)return {a:esc(aStr),b:esc(bStr)};
+  const n=a.length,m=b.length,W=m+1,dp=new Uint32Array((n+1)*W);
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)
+    dp[i*W+j]=a[i]===b[j]?dp[(i+1)*W+j+1]+1:Math.max(dp[(i+1)*W+j],dp[i*W+j+1]);
+  let i=0,j=0,ha='',hb='';
+  while(i<n&&j<m){
+    if(a[i]===b[j]){ha+=esc(a[i]);hb+=esc(b[j]);i++;j++}
+    else if(dp[(i+1)*W+j]>=dp[i*W+j+1]){ha+='<span class="del">'+esc(a[i])+'</span>';i++}
+    else{hb+='<span class="ins">'+esc(b[j])+'</span>';j++}
+  }
+  while(i<n){ha+='<span class="del">'+esc(a[i])+'</span>';i++}
+  while(j<m){hb+='<span class="ins">'+esc(b[j])+'</span>';j++}
+  return {a:ha,b:hb};
+}
+
+function renderResult(i){
+  const s=P.slides[i];
+  const box=document.getElementById('results');
+  const badge=s.status==='done'?'<span class="badge ok">완료</span>'
+    :s.status==='warnst'?'<span class="badge warnb">줄 수 불일치</span>'
+    :'<span class="badge errb">오류</span>';
+  let body='';
+  if(s.status==='err'){
+    body='<div class="body">'+esc(s.note)+'</div>';
+  }else{
+    const d=diffHtml(s.text,s.revised||'');
+    body=`<div class="body">
+      ${s.note?'<div class="warn" style="margin:0 0 10px">'+esc(s.note)+'</div>':''}
+      <h5>구조·논리 감사</h5><ul>${(s.audit||[]).map(x=>'<li>'+esc(x)+'</li>').join('')||'<li>—</li>'}</ul>
+      <h5>자체 점검</h5><ul>${(s.selfcheck||[]).map(x=>'<li>'+esc(x)+'</li>').join('')||'<li>—</li>'}</ul>
+      <h5>변경 로그</h5><ul>${(s.changelog||[]).map(x=>'<li>'+esc(x)+'</li>').join('')||'<li>—</li>'}</ul>
+      <h5>원문 (삭제 표시)</h5><div class="diffline">${d.a}</div>
+      <h5>수정본 (삽입 표시)</h5><div class="diffline">${d.b}</div>
+    </div>`;
+  }
+  box.insertAdjacentHTML('beforeend',
+    `<details class="result" ${s.status!=='done'?'open':''}><summary>슬라이드 ${i+1} ${badge}</summary>${body}</details>`);
+}
+
+/* ---------- export ---------- */
+async function exportPptx(){
+  if(!P.zip)return;
+  const ser=new XMLSerializer();let applied=0;
+  for(const s of P.slides){
+    if(s.status!=='done'||!s.revised)continue;
+    const lines=s.revised.split('\n');
+    if(lines.length!==s.paras.length)continue;
+    s.paras.forEach((p,idx)=>{
+      const ts=p.node.getElementsByTagNameNS(A_NS,'t');
+      for(let k=0;k<ts.length;k++)ts[k].textContent=k===0?lines[idx]:'';
+    });
+    P.zip.file(s.path,ser.serializeToString(s.doc));applied++;
+  }
+  if(!applied){toast('반영할 수정 결과가 없습니다');return}
+  const blob=await P.zip.generateAsync({type:'blob',
+    mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+  dl(blob,P.name.replace(/\.pptx$/i,'')+'-검수반영.pptx');
+  toast('슬라이드 '+applied+'장의 수정이 반영된 .pptx를 저장했습니다');
+}
+function downloadReport(){
+  let md='# PPT 검수 감사 보고서\n\n파일: '+P.name+'\n일시: '+new Date().toLocaleString('ko-KR')+'\n모델: '+v('provider')+' / '+v('model')+'\n';
+  P.slides.forEach((s,i)=>{
+    if(!s.audit&&s.status!=='err')return;
+    md+='\n## 슬라이드 '+(i+1)+' — '+(s.status==='done'?'완료':s.status==='warnst'?'줄 수 불일치':'오류')+'\n';
+    if(s.note)md+='\n> '+s.note+'\n';
+    if(s.audit){
+      md+='\n### 구조·논리 감사\n'+(s.audit.map(x=>'- '+x).join('\n')||'- —');
+      md+='\n\n### 자체 점검\n'+((s.selfcheck||[]).map(x=>'- '+x).join('\n')||'- —');
+      md+='\n\n### 변경 로그\n'+((s.changelog||[]).map(x=>'- '+x).join('\n')||'- —')+'\n';
+    }
+  });
+  dl(new Blob([md],{type:'text/markdown'}),P.name.replace(/\.pptx$/i,'')+'-감사보고서.md');
+  toast('감사 보고서를 저장했습니다');
+}
+</script>
+</body>
+</html>
