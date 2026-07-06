@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>백서 검수 데스크</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --paper:#F2F4F6; --card:#FFFFFF; --ink:#1C2530; --muted:#66707B;
+  --line:#D8DEE4; --line-soft:#E8ECF0;
+  --red:#B9382B; --red-bg:#FAE9E6; --green:#1E7A55; --green-bg:#E3F2EA;
+  --navy:#243B53; --navy-soft:#EDF1F5;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'IBM Plex Sans KR',-apple-system,'Apple SD Gothic Neo',sans-serif;
+  background:var(--paper);color:var(--ink);font-size:14.5px;line-height:1.65;
+  min-height:100vh;
+}
+header{
+  max-width:1180px;margin:0 auto;padding:34px 24px 0;
+}
+h1{font-family:'Noto Serif KR',serif;font-weight:700;font-size:26px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin-top:4px;font-size:13.5px}
+/* index-tab style nav */
+nav{max-width:1180px;margin:26px auto 0;padding:0 24px;display:flex;gap:6px;align-items:flex-end}
+nav button{
+  font-family:inherit;font-size:14px;font-weight:500;color:var(--muted);
+  background:#E7EBEF;border:1px solid var(--line);border-bottom:none;
+  border-radius:10px 10px 0 0;padding:10px 20px 9px;cursor:pointer;
+  transition:background .15s,color .15s;
+}
+nav button:hover{background:#EDF0F3}
+nav button.on{background:var(--card);color:var(--ink);font-weight:600;padding-top:13px;border-color:var(--line)}
+nav .spacer{flex:1}
+nav .session{display:flex;gap:8px;padding-bottom:8px}
+main{max-width:1180px;margin:0 auto;padding:0 24px 60px}
+.panel{
+  background:var(--card);border:1px solid var(--line);border-radius:0 var(--radius) var(--radius) var(--radius);
+  padding:28px;display:none;
+}
+.panel.on{display:block}
+h2{font-family:'Noto Serif KR',serif;font-size:18px;font-weight:600;margin-bottom:6px}
+.hint{color:var(--muted);font-size:13px;margin-bottom:18px}
+label{display:block;font-weight:600;font-size:13px;margin:16px 0 5px}
+label .opt{color:var(--muted);font-weight:400}
+input[type=text],textarea,select{
+  width:100%;font-family:inherit;font-size:14px;color:var(--ink);
+  border:1px solid var(--line);border-radius:7px;padding:9px 11px;background:#FDFDFE;
+}
+textarea{resize:vertical;min-height:74px;line-height:1.6}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--navy);outline-offset:-1px;border-color:var(--navy)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 22px}
+@media(max-width:820px){.grid2{grid-template-columns:1fr}}
+.btn{
+  font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  border:1px solid var(--navy);background:var(--navy);color:#fff;
+  border-radius:7px;padding:8px 16px;transition:opacity .15s;
+}
+.btn:hover{opacity:.88}
+.btn.ghost{background:transparent;color:var(--navy)}
+.btn.small{padding:5px 11px;font-size:12.5px}
+.btn.danger{border-color:var(--red);background:transparent;color:var(--red)}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.mt{margin-top:18px}
+/* profile preview */
+.mdout{
+  background:#FBFBF9;border:1px solid var(--line);border-radius:8px;
+  font-family:ui-monospace,'Nanum Gothic Coding',Consolas,monospace;
+  font-size:12.8px;line-height:1.7;padding:16px;white-space:pre-wrap;
+  max-height:520px;overflow:auto;
+}
+/* diff */
+.diffgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.diffgrid{grid-template-columns:1fr}}
+.pane h3{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:.02em}
+.diffview{
+  border:1px solid var(--line);border-radius:8px;background:#FFFEFB;
+  padding:16px 18px;min-height:180px;max-height:560px;overflow:auto;
+  white-space:pre-wrap;word-break:break-word;font-size:14.5px;line-height:1.9;
+}
+.del{background:var(--red-bg);color:var(--red);text-decoration:line-through;text-decoration-thickness:1.5px;border-radius:3px;padding:0 1px}
+.ins{background:var(--green-bg);color:var(--green);border-radius:3px;padding:0 1px;box-shadow:inset 0 -2px 0 var(--green)}
+.budget{
+  margin-top:18px;border:1px solid var(--line);border-radius:8px;padding:14px 18px;
+  display:flex;gap:22px;align-items:center;flex-wrap:wrap;background:var(--navy-soft);
+}
+.budget .num{font-family:'Noto Serif KR',serif;font-size:22px;font-weight:700}
+.bar{flex:1;min-width:160px;height:8px;background:#DFE5EB;border-radius:4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--green);border-radius:4px;transition:width .3s}
+.bar i.over{background:var(--red)}
+.bstat{font-size:12.5px;color:var(--muted)}
+.ok{color:var(--green);font-weight:600}.over{color:var(--red);font-weight:600}
+/* review */
+.editwrap{display:grid;grid-template-columns:1fr 320px;gap:20px}
+@media(max-width:920px){.editwrap{grid-template-columns:1fr}}
+#docText{min-height:380px;font-size:14.5px;line-height:1.85}
+.side{display:flex;flex-direction:column;gap:16px}
+.sidecard{border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.sidecard h3{font-size:13.5px;font-weight:600;margin-bottom:8px}
+.comment{border-left:3px solid var(--red);background:#FCF9F8;border-radius:0 6px 6px 0;padding:8px 10px;margin-bottom:9px;font-size:13px}
+.comment.done{border-left-color:var(--green);opacity:.65}
+.comment .q{font-family:ui-monospace,monospace;font-size:12px;background:#F1EDE9;border-radius:4px;padding:1px 5px;color:#5A4A3A;display:inline-block;margin-bottom:4px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
+.comment .q.stale{background:var(--red-bg);color:var(--red)}
+.comment .meta{color:var(--muted);font-size:11.5px;margin-top:4px;display:flex;gap:10px;align-items:center}
+.comment .meta button{border:none;background:none;color:var(--navy);cursor:pointer;font-size:11.5px;padding:0;font-family:inherit}
+.comment .meta button.rm{color:var(--red)}
+.ver{display:flex;gap:8px;align-items:baseline;padding:7px 2px;border-bottom:1px dashed var(--line-soft);font-size:13px}
+.ver:last-child{border-bottom:none}
+.ver .vn{font-family:'Noto Serif KR',serif;font-weight:700;color:var(--navy);min-width:34px}
+.ver .note{flex:1}
+.ver .ts{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.ver button{border:none;background:none;color:var(--navy);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px}
+.empty{color:var(--muted);font-size:13px;font-style:normal;padding:6px 0}
+.toast{
+  position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(80px);
+  background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;
+  transition:transform .25s;z-index:50;
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.vcompare{margin-top:20px;display:none}
+.vcompare.on{display:block}
+select.vsel{width:auto;display:inline-block;padding:6px 10px;font-size:13px}
+/* ppt */
+.pptwrap{display:grid;grid-template-columns:230px 1fr;gap:20px}
+@media(max-width:820px){.pptwrap{grid-template-columns:1fr}}
+.slidelist{border:1px solid var(--line);border-radius:8px;max-height:560px;overflow:auto}
+.slideitem{padding:10px 12px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:12.5px}
+.slideitem:last-child{border-bottom:none}
+.slideitem:hover{background:var(--navy-soft)}
+.slideitem.sel{background:var(--navy);color:#fff}
+.slideitem.sel .snip{color:#C9D4DF}
+.slideitem.edited::after{content:'수정됨';font-size:10.5px;color:var(--red);margin-left:6px;font-weight:600}
+.slideitem.sel.edited::after{color:#FFC9C0}
+.slideitem .sn{font-family:'Noto Serif KR',serif;font-weight:700}
+.slideitem .snip{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+#slideText{min-height:340px;font-size:14px;line-height:1.85}
+.dropzone{
+  border:2px dashed var(--line);border-radius:10px;padding:40px 20px;text-align:center;
+  color:var(--muted);cursor:pointer;transition:border-color .15s,background .15s;
+}
+.dropzone:hover,.dropzone.drag{border-color:var(--navy);background:var(--navy-soft)}
+.linewarn{color:var(--red);font-size:12.5px;margin-top:6px;display:none}
+footer{max-width:1180px;margin:0 auto;padding:14px 24px 40px;color:var(--muted);font-size:12px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>백서 검수 데스크</h1>
+  <div class="sub">문서 프로필 작성 · 원문/수정본 비교 · 코멘트와 버전 이력 관리</div>
+</header>
+
+<nav>
+  <button class="on" data-tab="profile">① 프로필 생성</button>
+  <button data-tab="diff">② Diff 비교</button>
+  <button data-tab="review">③ 검수 &amp; 히스토리</button>
+  <button data-tab="ppt">④ PPT 슬라이드</button>
+  <span class="spacer"></span>
+  <span class="session">
+    <button class="btn ghost small" onclick="exportSession()">세션 내보내기</button>
+    <button class="btn ghost small" onclick="document.getElementById('importFile').click()">가져오기</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importSession(this)">
+  </span>
+</nav>
+
+<main>
+
+<!-- ① PROFILE -->
+<section class="panel on" id="tab-profile">
+  <h2>문서 프로필</h2>
+  <div class="hint">백서당 한 번 작성합니다. 오른쪽(하단)에 완성된 마크다운이 실시간으로 생성되며, 복사하거나 .md 파일로 저장해 검수 요청 시 함께 제공하세요.</div>
+  <div class="grid2">
+    <div>
+      <label>백서 주제</label>
+      <input type="text" id="p_topic" placeholder="예: DR/재해복구 아키텍처">
+      <label>타깃 도메인</label>
+      <input type="text" id="p_domain" placeholder="공공 / 금융 / 제조 / 기타">
+      <label>제품 카테고리</label>
+      <input type="text" id="p_category" placeholder="IaaS / PaaS / DevOps / DR / 기타">
+      <label>타깃 독자</label>
+      <input type="text" id="p_audience" placeholder="예: 공공기관 IT 인프라 의사결정권자">
+      <label>홍보 대상 자사 제품/솔루션 <span class="opt">(표기 그대로 사용)</span></label>
+      <textarea id="p_products" placeholder="예: CONTRABASS, CONTRABASS Legato DR"></textarea>
+      <label>파트너 제품 &amp; 역할 경계 <span class="opt">(없으면 "없음")</span></label>
+      <textarea id="p_partners" placeholder="예: NetApp MetroCluster/SnapMirror — 스토리지 계층 담당"></textarea>
+      <label>고정 도메인 용어 <span class="opt">(번역·치환·변형 금지)</span></label>
+      <textarea id="p_terms" placeholder="예: 보호 그룹, 복구 계획, RTO/RPO, DR 오케스트레이션, 모의 훈련"></textarea>
+      <label>스타일 레퍼런스 발췌 <span class="opt">(선택)</span></label>
+      <textarea id="p_style" placeholder="따라야 할 기존 백서 문단 발췌, 없으면 비워두기"></textarea>
+      <label>보정 예시 BEFORE <span class="opt">(선택)</span></label>
+      <textarea id="p_before" placeholder="원문 문단"></textarea>
+      <label>보정 예시 AFTER <span class="opt">(선택)</span></label>
+      <textarea id="p_after" placeholder="직접 고친 최종본"></textarea>
+      <label>과도한 수정 예시 [BAD] <span class="opt">(선택)</span></label>
+      <textarea id="p_bad" placeholder="절대 금지할 수준의 수정 예시"></textarea>
+      <div class="grid2">
+        <div>
+          <label>수정 허용 한도 (%)</label>
+          <input type="text" id="p_budget" value="15">
+        </div>
+        <div>
+          <label>문장당 단어 수준 변경 최대 횟수</label>
+          <input type="text" id="p_wordmax" value="2">
+        </div>
+      </div>
+    </div>
+    <div>
+      <label style="margin-top:16px">생성된 프로필 (.md)</label>
+      <div class="mdout" id="mdPreview"></div>
+      <div class="row mt">
+        <button class="btn" onclick="copyMd()">복사</button>
+        <button class="btn ghost" onclick="downloadMd()">.md 다운로드</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ② DIFF -->
+<section class="panel" id="tab-diff">
+  <h2>원문 · 수정본 비교</h2>
+  <div class="hint">왼쪽에 원문, 오른쪽에 AI 수정본을 붙여넣고 비교하세요. 삭제는 <span class="del">빨간 취소선</span>, 삽입은 <span class="ins">초록 밑줄</span>로 표시됩니다. 하단 게이지가 수정 허용 한도 준수 여부를 보여줍니다.</div>
+  <div class="diffgrid">
+    <div class="pane">
+      <h3>원문 (BEFORE)</h3>
+      <textarea id="diffA" style="min-height:170px" placeholder="원문을 붙여넣으세요"></textarea>
+    </div>
+    <div class="pane">
+      <h3>수정본 (AFTER)</h3>
+      <textarea id="diffB" style="min-height:170px" placeholder="수정본을 붙여넣으세요"></textarea>
+    </div>
+  </div>
+  <div class="row mt">
+    <button class="btn" onclick="runDiff()">비교 실행</button>
+    <button class="btn ghost" onclick="clearDiff()">지우기</button>
+    <button class="btn ghost" onclick="sendToReview()">수정본을 ③ 검수 탭으로 보내기</button>
+  </div>
+  <div class="budget" id="budgetBox" style="display:none">
+    <div><div class="num" id="pctNum">0%</div><div class="bstat">변경 글자 비율</div></div>
+    <div class="bar"><i id="pctBar" style="width:0%"></i></div>
+    <div class="bstat" id="budgetMsg"></div>
+    <div class="bstat" id="charStats"></div>
+  </div>
+  <div class="diffgrid mt" id="diffResult" style="display:none">
+    <div class="pane"><h3>원문 기준 (삭제 표시)</h3><div class="diffview" id="viewA"></div></div>
+    <div class="pane"><h3>수정본 기준 (삽입 표시)</h3><div class="diffview" id="viewB"></div></div>
+  </div>
+</section>
+
+<!-- ③ REVIEW -->
+<section class="panel" id="tab-review">
+  <h2>검수 &amp; 히스토리</h2>
+  <div class="hint">본문에서 텍스트를 드래그로 선택한 뒤 「선택 영역에 코멘트」를 누르면 해당 구절에 코멘트가 달립니다. 수정 후 「버전 저장」으로 스냅숏을 남기고, 이력에서 두 버전을 골라 무엇이 바뀌었는지 확인하세요.</div>
+  <div class="editwrap">
+    <div>
+      <textarea id="docText" placeholder="검수할 본문을 붙여넣으세요"></textarea>
+      <div class="row mt">
+        <button class="btn" onclick="addComment()">선택 영역에 코멘트</button>
+        <input type="text" id="verNote" placeholder="버전 메모 (예: 접속사 정리)" style="width:220px">
+        <button class="btn ghost" onclick="saveVersion()">버전 저장</button>
+      </div>
+    </div>
+    <div class="side">
+      <div class="sidecard">
+        <h3>코멘트 <span id="cCount" style="color:var(--muted);font-weight:400"></span></h3>
+        <div id="commentList"><div class="empty">아직 코멘트가 없습니다. 본문을 선택하고 코멘트를 추가하세요.</div></div>
+      </div>
+      <div class="sidecard">
+        <h3>버전 이력</h3>
+        <div id="verList"><div class="empty">저장된 버전이 없습니다.</div></div>
+        <div class="row" style="margin-top:12px" id="cmpRow" hidden>
+          <select class="vsel" id="cmpA"></select> →
+          <select class="vsel" id="cmpB"></select>
+          <button class="btn small" onclick="compareVersions()">변경 보기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="vcompare" id="vcompare">
+    <h2 style="margin-top:8px" id="vcTitle">버전 비교</h2>
+    <div class="budget" id="vBudget"></div>
+    <div class="diffgrid mt">
+      <div class="pane"><h3 id="vhA"></h3><div class="diffview" id="vViewA"></div></div>
+      <div class="pane"><h3 id="vhB"></h3><div class="diffview" id="vViewB"></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ④ PPT -->
+<section class="panel" id="tab-ppt">
+  <h2>PPT 슬라이드 텍스트</h2>
+  <div class="hint">.pptx 파일을 올리면 슬라이드별 텍스트를 추출해 편집할 수 있습니다. 편집한 내용은 원본 디자인을 유지한 채 수정된 .pptx로 다시 내보낼 수 있고, 각 슬라이드를 Diff 비교나 검수 탭으로 보낼 수도 있습니다. 텍스트만 표시되며 슬라이드 디자인 미리보기는 지원하지 않습니다. (.ppt 구형 형식은 지원하지 않음 — PowerPoint에서 .pptx로 저장 후 사용)</div>
+
+  <div class="dropzone" id="dropzone" onclick="document.getElementById('pptFile').click()">
+    여기를 클릭하거나 .pptx 파일을 끌어다 놓으세요
+    <input type="file" id="pptFile" accept=".pptx" style="display:none" onchange="loadPptx(this.files[0])">
+  </div>
+
+  <div id="pptWork" style="display:none">
+    <div class="row" style="margin:0 0 16px">
+      <span id="pptName" style="font-weight:600"></span>
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn ghost small" onclick="allToReview()">전체 텍스트를 ③ 검수 탭으로</button>
+      <button class="btn small" onclick="exportPptx()">수정된 .pptx 다운로드</button>
+      <button class="btn danger small" onclick="closePptx()">닫기</button>
+    </div>
+    <div class="pptwrap">
+      <div class="slidelist" id="slideList"></div>
+      <div>
+        <h3 style="font-size:13.5px;font-weight:600;margin-bottom:6px" id="slideTitle"></h3>
+        <textarea id="slideText" oninput="slideEdited()"></textarea>
+        <div class="linewarn" id="lineWarn">줄 수가 원본 문단 수와 다릅니다 — 이 상태로는 .pptx 내보내기 시 이 슬라이드가 원본 텍스트로 유지됩니다. 한 줄 = 한 문단을 유지하세요.</div>
+        <div class="row mt">
+          <button class="btn small" onclick="saveSlide()">이 슬라이드 저장</button>
+          <button class="btn ghost small" onclick="slideToDiff('A')">Diff 원문으로</button>
+          <button class="btn ghost small" onclick="slideToDiff('B')">Diff 수정본으로</button>
+          <button class="btn ghost small" onclick="slideToReview()">③ 검수 탭으로</button>
+          <button class="btn ghost small" onclick="revertSlide()">원본으로 되돌리기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>이 페이지의 데이터는 브라우저를 닫으면 사라집니다. 작업을 보관하거나 다른 사람과 공유하려면 상단의 「세션 내보내기」로 JSON 파일을 저장하세요. PPT 파일 자체는 세션에 포함되지 않으므로, 슬라이드 수정 후에는 「수정된 .pptx 다운로드」로 별도 저장하세요.</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- state (in-memory; persist via export/import) ---------- */
+const S = { comments: [], versions: [] };
+let toastT;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200);
+}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('nav button[data-tab]').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('nav button[data-tab]').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.panel').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    document.getElementById('tab-'+b.dataset.tab).classList.add('on');
+  });
+});
+
+/* ---------- ① profile ---------- */
+const pf = ['p_topic','p_domain','p_category','p_audience','p_products','p_partners','p_terms','p_style','p_before','p_after','p_bad','p_budget','p_wordmax'];
+function v(id){return document.getElementById(id).value.trim()}
+function buildMd(){
+  const or = (x,d)=> x||d;
+  let md = `# 백서 문서 프로필
+
+백서 주제: ${or(v('p_topic'),'[[미작성]]')}
+
+타깃 도메인: ${or(v('p_domain'),'[[미작성]]')}
+
+제품 카테고리: ${or(v('p_category'),'[[미작성]]')}
+
+타깃 독자: ${or(v('p_audience'),'[[미작성]]')}
+
+홍보 대상 자사 제품/솔루션 (표기 그대로 사용):
+${or(v('p_products'),'[[미작성]]')}
+
+파트너 제품 (역할 경계 명시, 없으면 "없음"):
+${or(v('p_partners'),'없음')}
+
+고정 도메인 용어 (번역·치환·변형 금지):
+${or(v('p_terms'),'[[미작성]]')}
+
+스타일 레퍼런스 (선택):
+${or(v('p_style'),'없음')}
+`;
+  if(v('p_before')||v('p_after')||v('p_bad')){
+    md += `
+보정 예시:
+[BEFORE] ${or(v('p_before'),'—')}
+[AFTER]  ${or(v('p_after'),'—')}`;
+    if(v('p_bad')) md += `
+[BAD]    ${v('p_bad')}`;
+    md += '\n';
+  }
+  md += `
+수정 허용 한도: 전체 글자 수의 ${or(v('p_budget'),'15')}% 이내 변경.
+문장당 단어 수준 변경 최대 ${or(v('p_wordmax'),'2')}회 (접속사·연결어 제외).
+`;
+  return md;
+}
+function renderMd(){document.getElementById('mdPreview').textContent = buildMd()}
+pf.forEach(id=>document.getElementById(id).addEventListener('input',renderMd));
+renderMd();
+function copyMd(){
+  navigator.clipboard.writeText(buildMd()).then(()=>toast('프로필이 복사되었습니다'))
+  .catch(()=>toast('복사 실패 — 직접 선택해 복사하세요'));
+}
+function downloadMd(){
+  const name = (v('p_topic')||'whitepaper') + '-profile.md';
+  dl(new Blob([buildMd()],{type:'text/markdown'}), name);
+  toast('.md 파일을 저장했습니다');
+}
+function dl(blob,name){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+}
+
+/* ---------- diff engine (word-level LCS) ---------- */
+function tokenize(s){ return s.match(/\s+|[가-힣]+|[A-Za-z0-9._%/\-]+|./gs) || []; }
+function diffOps(aStr,bStr){
+  let a=tokenize(aStr), b=tokenize(bStr);
+  // guard: fall back to line tokens for very large inputs
+  if(a.length*b.length > 6_000_000){
+    a=aStr.split(/(\n)/); b=bStr.split(/(\n)/);
+  }
+  const n=a.length,m=b.length;
+  const W=m+1, dp=new Uint32Array((n+1)*W);
+  for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--){
+    dp[i*W+j] = a[i]===b[j] ? dp[(i+1)*W+j+1]+1 : Math.max(dp[(i+1)*W+j],dp[i*W+j+1]);
+  }
+  const ops=[]; let i=0,j=0;
+  const push=(t,x)=>{ const last=ops[ops.length-1]; if(last&&last.t===t)last.s+=x; else ops.push({t,s:x}); };
+  while(i<n&&j<m){
+    if(a[i]===b[j]){push('eq',a[i]);i++;j++;}
+    else if(dp[(i+1)*W+j]>=dp[i*W+j+1]){push('del',a[i]);i++;}
+    else{push('ins',b[j]);j++;}
+  }
+  while(i<n){push('del',a[i]);i++;}
+  while(j<m){push('ins',b[j]);j++;}
+  return ops;
+}
+function renderDiff(ops, mode){ // mode 'A' shows eq+del, 'B' shows eq+ins
+  let h='';
+  for(const o of ops){
+    if(o.t==='eq') h+=esc(o.s);
+    else if(o.t==='del'&&mode==='A') h+='<span class="del">'+esc(o.s)+'</span>';
+    else if(o.t==='ins'&&mode==='B') h+='<span class="ins">'+esc(o.s)+'</span>';
+  }
+  return h;
+}
+function diffStats(ops){
+  let del=0,ins=0;
+  for(const o of ops){ if(o.t==='del')del+=o.s.replace(/\s/g,'').length; if(o.t==='ins')ins+=o.s.replace(/\s/g,'').length; }
+  return {del,ins};
+}
+function showBudget(el, ops, origLen){
+  const {del,ins}=diffStats(ops);
+  const pct = origLen? Math.round((del+ins)/origLen*1000)/10 : 0;
+  const limit = parseFloat(v('p_budget'))||15;
+  const over = pct>limit;
+  el.innerHTML =
+    `<div><div class="num">${pct}%</div><div class="bstat">변경 글자 비율</div></div>`+
+    `<div class="bar"><i class="${over?'over':''}" style="width:${Math.min(100,pct/limit*100)}%"></i></div>`+
+    `<div class="bstat">허용 한도 ${limit}% — <span class="${over?'over':'ok'}">${over?'초과':'준수'}</span></div>`+
+    `<div class="bstat">삭제 ${del}자 · 삽입 ${ins}자 · 원문 ${origLen}자 (공백 제외)</div>`;
+}
+function runDiff(){
+  const a=document.getElementById('diffA').value, b=document.getElementById('diffB').value;
+  if(!a&&!b){toast('비교할 텍스트를 입력하세요');return}
+  const ops=diffOps(a,b);
+  document.getElementById('viewA').innerHTML=renderDiff(ops,'A');
+  document.getElementById('viewB').innerHTML=renderDiff(ops,'B');
+  document.getElementById('diffResult').style.display='grid';
+  const bb=document.getElementById('budgetBox'); bb.style.display='flex';
+  showBudget(bb, ops, a.replace(/\s/g,'').length);
+}
+function clearDiff(){
+  document.getElementById('diffA').value=''; document.getElementById('diffB').value='';
+  document.getElementById('diffResult').style.display='none';
+  document.getElementById('budgetBox').style.display='none';
+}
+function sendToReview(){
+  const b=document.getElementById('diffB').value;
+  if(!b){toast('수정본이 비어 있습니다');return}
+  document.getElementById('docText').value=b;
+  refreshComments();
+  document.querySelector('[data-tab=review]').click();
+  toast('수정본을 검수 탭으로 가져왔습니다');
+}
+
+/* ---------- ③ review: comments ---------- */
+function addComment(){
+  const ta=document.getElementById('docText');
+  const s=ta.selectionStart, e=ta.selectionEnd;
+  if(s===e){toast('본문에서 코멘트를 달 구절을 먼저 드래그로 선택하세요');return}
+  const quote=ta.value.slice(s,e);
+  const body=prompt('이 구절에 대한 코멘트:\n\n"'+quote.slice(0,80)+(quote.length>80?'…':'')+'"');
+  if(!body)return;
+  S.comments.unshift({id:Date.now(), quote, body, done:false});
+  refreshComments(); toast('코멘트를 추가했습니다');
+}
+function refreshComments(){
+  const box=document.getElementById('commentList');
+  const doc=document.getElementById('docText').value;
+  document.getElementById('cCount').textContent = S.comments.length? '('+S.comments.filter(c=>!c.done).length+' 미해결)' : '';
+  if(!S.comments.length){box.innerHTML='<div class="empty">아직 코멘트가 없습니다. 본문을 선택하고 코멘트를 추가하세요.</div>';return}
+  box.innerHTML = S.comments.map(c=>{
+    const stale = doc.indexOf(c.quote)===-1;
+    return `<div class="comment ${c.done?'done':''}">
+      <span class="q ${stale?'stale':''}" title="${esc(c.quote)}">${esc(c.quote.slice(0,42))}${c.quote.length>42?'…':''}${stale?' (본문에서 위치 확인 필요)':''}</span><br>
+      ${esc(c.body)}
+      <div class="meta">
+        <button onclick="toggleC(${c.id})">${c.done?'미해결로':'해결됨'}</button>
+        <button class="rm" onclick="rmC(${c.id})">삭제</button>
+      </div></div>`;
+  }).join('');
+}
+function toggleC(id){const c=S.comments.find(x=>x.id===id); if(c){c.done=!c.done; refreshComments();}}
+function rmC(id){S.comments=S.comments.filter(x=>x.id!==id); refreshComments();}
+document.getElementById('docText').addEventListener('input',()=>refreshComments());
+
+/* ---------- ③ review: versions ---------- */
+function saveVersion(){
+  const text=document.getElementById('docText').value;
+  if(!text.trim()){toast('본문이 비어 있습니다');return}
+  const last=S.versions[S.versions.length-1];
+  if(last && last.text===text){toast('마지막 버전과 동일합니다');return}
+  const note=document.getElementById('verNote').value.trim()||'(메모 없음)';
+  S.versions.push({n:S.versions.length+1, ts:new Date(), text, note});
+  document.getElementById('verNote').value='';
+  refreshVersions(); toast('v'+S.versions.length+' 버전을 저장했습니다');
+}
+function fmt(d){d=new Date(d);const p=x=>String(x).padStart(2,'0');return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
+function refreshVersions(){
+  const box=document.getElementById('verList');
+  if(!S.versions.length){box.innerHTML='<div class="empty">저장된 버전이 없습니다.</div>';document.getElementById('cmpRow').hidden=true;return}
+  box.innerHTML=S.versions.slice().reverse().map(vv=>
+    `<div class="ver"><span class="vn">v${vv.n}</span><span class="note">${esc(vv.note)}</span>
+     <span class="ts">${fmt(vv.ts)}</span>
+     <button onclick="loadVer(${vv.n})">불러오기</button></div>`).join('');
+  const opts=S.versions.map(vv=>`<option value="${vv.n}">v${vv.n} — ${esc(vv.note.slice(0,14))}</option>`).join('');
+  const a=document.getElementById('cmpA'),b=document.getElementById('cmpB');
+  a.innerHTML=opts;b.innerHTML=opts;
+  if(S.versions.length>=2){a.value=S.versions.length-1;b.value=S.versions.length;}
+  document.getElementById('cmpRow').hidden = S.versions.length<2;
+}
+function loadVer(n){
+  const vv=S.versions.find(x=>x.n===n); if(!vv)return;
+  document.getElementById('docText').value=vv.text; refreshComments();
+  toast('v'+n+' 내용을 편집기로 불러왔습니다');
+}
+function compareVersions(){
+  const na=+document.getElementById('cmpA').value, nb=+document.getElementById('cmpB').value;
+  if(na===nb){toast('서로 다른 두 버전을 선택하세요');return}
+  const A=S.versions.find(x=>x.n===na), B=S.versions.find(x=>x.n===nb);
+  const ops=diffOps(A.text,B.text);
+  document.getElementById('vcTitle').textContent=`버전 비교: v${na} → v${nb}`;
+  document.getElementById('vhA').textContent=`v${na} — ${A.note}`;
+  document.getElementById('vhB').textContent=`v${nb} — ${B.note}`;
+  document.getElementById('vViewA').innerHTML=renderDiff(ops,'A');
+  document.getElementById('vViewB').innerHTML=renderDiff(ops,'B');
+  showBudget(document.getElementById('vBudget'), ops, A.text.replace(/\s/g,'').length);
+  const box=document.getElementById('vcompare'); box.classList.add('on');
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ---------- ④ PPTX ---------- */
+const A_NS='http://schemas.openxmlformats.org/drawingml/2006/main';
+const P = { zip:null, name:'', slides:[], sel:0 };
+// slide = { path, doc, paras:[{node, orig}], origText, text, edited }
+
+const dz=document.getElementById('dropzone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('drag');
+  const f=e.dataTransfer.files[0];
+  if(f) loadPptx(f);
+});
+
+async function loadPptx(file){
+  if(!file) return;
+  if(!/\.pptx$/i.test(file.name)){toast('.pptx 파일만 지원합니다');return}
+  try{
+    const zip = await JSZip.loadAsync(file);
+    const paths = Object.keys(zip.files)
+      .filter(p=>/^ppt\/slides\/slide\d+\.xml$/.test(p))
+      .sort((a,b)=>(+a.match(/\d+/g).pop())-(+b.match(/\d+/g).pop()));
+    if(!paths.length){toast('슬라이드를 찾을 수 없습니다');return}
+    const parser=new DOMParser();
+    P.slides=[];
+    for(const path of paths){
+      const xml=await zip.file(path).async('string');
+      const doc=parser.parseFromString(xml,'application/xml');
+      const paras=[];
+      const pNodes=doc.getElementsByTagNameNS(A_NS,'p');
+      for(const pn of pNodes){
+        const ts=pn.getElementsByTagNameNS(A_NS,'t');
+        if(!ts.length) continue;               // skip empty paragraphs (no text runs)
+        let txt=''; for(const t of ts) txt+=t.textContent;
+        paras.push({node:pn, orig:txt});
+      }
+      const origText=paras.map(x=>x.orig).join('\n');
+      P.slides.push({path, doc, paras, origText, text:origText, edited:false});
+    }
+    P.zip=zip; P.name=file.name; P.sel=0;
+    document.getElementById('pptName').textContent=file.name+' · 슬라이드 '+P.slides.length+'장';
+    document.getElementById('dropzone').style.display='none';
+    document.getElementById('pptWork').style.display='block';
+    renderSlideList(); selectSlide(0);
+    toast('PPT를 불러왔습니다 — 슬라이드 '+P.slides.length+'장');
+  }catch(e){ toast('파일을 읽지 못했습니다 — 손상되지 않은 .pptx인지 확인하세요'); }
+}
+
+function renderSlideList(){
+  document.getElementById('slideList').innerHTML = P.slides.map((s,i)=>{
+    const snip=(s.text.split('\n').find(l=>l.trim())||'(텍스트 없음)');
+    return `<div class="slideitem ${i===P.sel?'sel':''} ${s.edited?'edited':''}" onclick="selectSlide(${i})">
+      <span class="sn">슬라이드 ${i+1}</span>
+      <span class="snip">${esc(snip.slice(0,34))}</span></div>`;
+  }).join('');
+}
+function selectSlide(i){
+  // keep unsaved textarea content of previous slide in memory
+  stashCurrent();
+  P.sel=i;
+  const s=P.slides[i];
+  document.getElementById('slideTitle').textContent='슬라이드 '+(i+1)+' — 한 줄이 한 문단입니다 (줄 수 유지)';
+  document.getElementById('slideText').value=s.text;
+  checkLines(); renderSlideList();
+}
+function stashCurrent(){
+  const s=P.slides[P.sel]; if(!s)return;
+  const val=document.getElementById('slideText').value;
+  if(val!==s.text){ s.text=val; s.edited=(val!==s.origText); }
+}
+function slideEdited(){ checkLines(); }
+function checkLines(){
+  const s=P.slides[P.sel]; if(!s)return;
+  const lines=document.getElementById('slideText').value.split('\n').length;
+  document.getElementById('lineWarn').style.display = lines!==s.paras.length ? 'block':'none';
+}
+function saveSlide(){
+  const s=P.slides[P.sel]; if(!s)return;
+  s.text=document.getElementById('slideText').value;
+  s.edited=(s.text!==s.origText);
+  renderSlideList();
+  toast(s.edited?'슬라이드 '+(P.sel+1)+' 수정 내용을 저장했습니다':'원본과 동일합니다');
+}
+function revertSlide(){
+  const s=P.slides[P.sel]; if(!s)return;
+  s.text=s.origText; s.edited=false;
+  document.getElementById('slideText').value=s.text;
+  checkLines(); renderSlideList(); toast('원본 텍스트로 되돌렸습니다');
+}
+function slideToDiff(which){
+  stashCurrent(); const s=P.slides[P.sel];
+  document.getElementById(which==='A'?'diffA':'diffB').value = which==='A'? s.origText : s.text;
+  document.querySelector('[data-tab=diff]').click();
+  toast('슬라이드 '+(P.sel+1)+(which==='A'?' 원본을 Diff 원문':' 텍스트를 Diff 수정본')+'에 넣었습니다');
+}
+function slideToReview(){
+  stashCurrent(); const s=P.slides[P.sel];
+  document.getElementById('docText').value=s.text; refreshComments();
+  document.querySelector('[data-tab=review]').click();
+  toast('슬라이드 '+(P.sel+1)+' 텍스트를 검수 탭으로 보냈습니다');
+}
+function allToReview(){
+  stashCurrent();
+  document.getElementById('docText').value =
+    P.slides.map((s,i)=>'[슬라이드 '+(i+1)+']\n'+s.text).join('\n\n');
+  refreshComments();
+  document.querySelector('[data-tab=review]').click();
+  toast('전체 슬라이드 텍스트를 검수 탭으로 보냈습니다');
+}
+function writeBack(s){
+  // one line per paragraph; put line into first <a:t> of the paragraph, clear the rest
+  const lines=s.text.split('\n');
+  if(lines.length!==s.paras.length) return false;
+  s.paras.forEach((p,idx)=>{
+    const ts=p.node.getElementsByTagNameNS(A_NS,'t');
+    for(let k=0;k<ts.length;k++) ts[k].textContent = k===0 ? lines[idx] : '';
+  });
+  return true;
+}
+async function exportPptx(){
+  stashCurrent();
+  if(!P.zip)return;
+  let skipped=[];
+  const ser=new XMLSerializer();
+  for(let i=0;i<P.slides.length;i++){
+    const s=P.slides[i];
+    if(!s.edited) continue;
+    if(!writeBack(s)){ skipped.push(i+1); continue; }
+    P.zip.file(s.path, ser.serializeToString(s.doc));
+  }
+  const blob=await P.zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
+  dl(blob, P.name.replace(/\.pptx$/i,'')+'-검수반영.pptx');
+  toast(skipped.length
+    ? '내보냈습니다 (줄 수 불일치로 슬라이드 '+skipped.join(', ')+'는 원본 유지)'
+    : '수정된 .pptx를 내보냈습니다');
+}
+function closePptx(){
+  if(P.slides.some(x=>x.edited) && !confirm('저장하지 않은 슬라이드 수정 내용이 사라집니다. 닫을까요?')) return;
+  P.zip=null;P.slides=[];P.name='';
+  document.getElementById('pptWork').style.display='none';
+  document.getElementById('dropzone').style.display='block';
+  document.getElementById('pptFile').value='';
+}
+
+/* ---------- session export / import ---------- */
+function exportSession(){
+  const data={
+    exported:new Date().toISOString(),
+    profile:Object.fromEntries(pf.map(id=>[id,v(id)])),
+    diff:{a:document.getElementById('diffA').value,b:document.getElementById('diffB').value},
+    doc:document.getElementById('docText').value,
+    comments:S.comments, versions:S.versions
+  };
+  dl(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),'whitepaper-session.json');
+  toast('세션을 JSON으로 저장했습니다');
+}
+function importSession(input){
+  const f=input.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(d.profile) pf.forEach(id=>{ if(d.profile[id]!==undefined) document.getElementById(id).value=d.profile[id]; });
+      if(d.diff){document.getElementById('diffA').value=d.diff.a||'';document.getElementById('diffB').value=d.diff.b||'';}
+      if(typeof d.doc==='string') document.getElementById('docText').value=d.doc;
+      S.comments=Array.isArray(d.comments)?d.comments:[];
+      S.versions=Array.isArray(d.versions)?d.versions.map(x=>({...x,ts:new Date(x.ts)})):[];
+      renderMd(); refreshComments(); refreshVersions();
+      toast('세션을 불러왔습니다');
+    }catch(e){toast('가져오기 실패 — 올바른 세션 파일인지 확인하세요');}
+  };
+  r.readAsText(f); input.value='';
+}
+</script>
+</body>
+</html>
