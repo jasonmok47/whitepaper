@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>백서 생성 프롬프트 빌더</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F2F4F6; --card:#FFFFFF; --ink:#1C2530; --muted:#66707B;
+  --line:#D8DEE4; --line-soft:#E8ECF0;
+  --red:#B9382B; --green:#1E7A55; --green-bg:#E3F2EA;
+  --navy:#243B53; --navy-soft:#EDF1F5;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'IBM Plex Sans KR',-apple-system,'Apple SD Gothic Neo',sans-serif;
+  background:var(--paper);color:var(--ink);font-size:14.5px;line-height:1.65;min-height:100vh}
+header{max-width:1180px;margin:0 auto;padding:34px 24px 22px}
+h1{font-family:'Noto Serif KR',serif;font-weight:700;font-size:26px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin-top:4px;font-size:13.5px}
+main{max-width:1180px;margin:0 auto;padding:0 24px 60px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
+label{display:block;font-weight:600;font-size:13px;margin:14px 0 5px}
+label .opt{color:var(--muted);font-weight:400}
+.req{font-size:10.5px;font-weight:700;color:#fff;background:var(--red);border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+input[type=text],textarea{width:100%;font-family:inherit;font-size:14px;color:var(--ink);
+  border:1px solid var(--line);border-radius:7px;padding:9px 11px;background:#FDFDFE}
+textarea{resize:vertical;min-height:80px;line-height:1.6}
+input:focus,textarea:focus{outline:2px solid var(--navy);outline-offset:-1px}
+.reqmiss{outline:2px solid var(--red)!important;outline-offset:-1px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 26px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+.btn{font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;
+  border:1px solid var(--navy);background:var(--navy);color:#fff;border-radius:7px;
+  padding:8px 16px;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn.ghost{background:transparent;color:var(--navy)}
+.btn.small{padding:4px 10px;font-size:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.mt{margin-top:18px}
+.mdout{background:#FBFBF9;border:1px solid var(--line);border-radius:8px;
+  font-family:ui-monospace,Consolas,monospace;font-size:12.4px;line-height:1.7;
+  padding:16px;white-space:pre-wrap;max-height:600px;overflow:auto}
+.status{font-size:12.5px;font-weight:600}
+.status.miss{color:var(--red)}.status.ok{color:var(--green)}
+.vercard{border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:20px}
+.vercard h3{font-size:13.5px;font-weight:600;margin-bottom:4px}
+.vercard .hint{color:var(--muted);font-size:12.5px;margin-bottom:8px}
+.ver{display:flex;gap:8px;align-items:baseline;padding:7px 2px;border-bottom:1px dashed var(--line-soft);font-size:13px}
+.ver:last-child{border-bottom:none}
+.ver .vn{font-family:'Noto Serif KR',serif;font-weight:700;color:var(--navy);min-width:34px}
+.ver .note{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ver .ts{color:var(--muted);font-size:11.5px;white-space:nowrap}
+.ver button{border:none;background:none;color:var(--navy);cursor:pointer;font-size:12px;font-family:inherit;padding:0 2px}
+.empty{color:var(--muted);font-size:13px;padding:4px 0}
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(80px);
+  background:var(--ink);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;
+  transition:transform .25s;z-index:50}
+.toast.show{transform:translateX(-50%) translateY(0)}
+footer{max-width:1180px;margin:0 auto;padding:14px 24px 40px;color:var(--muted);font-size:12px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>백서 생성 프롬프트 빌더</h1>
+  <div class="sub">여섯 항목을 채우면 백서 초안 작성용 프롬프트(.md)가 완성됩니다. 레퍼런스 파일은 이 md와 함께 AI에 업로드하면 됩니다.</div>
+</header>
+
+<main>
+<div class="panel">
+  <div class="grid2">
+    <div>
+      <label>백서 주제<span class="req">필수</span></label>
+      <input type="text" id="f_topic" placeholder="예: 클라우드 기반 재해복구 아키텍처">
+      <label>타깃 도메인<span class="req">필수</span></label>
+      <input type="text" id="f_domain" placeholder="공공 / 금융 / 제조 / 기타">
+      <label>제품 카테고리<span class="req">필수</span></label>
+      <input type="text" id="f_category" placeholder="IaaS / PaaS / DevOps / 기타">
+      <label>타깃 독자<span class="req">필수</span></label>
+      <input type="text" id="f_audience" placeholder="예: 공공기관 IT 인프라 의사결정권자">
+      <label>홍보 대상 자사 제품/솔루션<span class="req">필수</span> <span class="opt">(표기 그대로 사용됨)</span></label>
+      <textarea id="f_products" placeholder="예: CONTRABASS, CONTRABASS Legato DR"></textarea>
+      <label>레퍼런스 정보 <span class="opt">(구축 사례·PoC 결과 등 텍스트로 정리한 내용. 파일로만 제공하면 비워두기)</span></label>
+      <textarea id="f_reference" style="min-height:120px" placeholder="예: OO 제조사 PoC — 3개 장애 시나리오에서 분 단위 복구 확인. 상세 수치는 첨부 파일 참조"></textarea>
+
+      <div class="vercard">
+        <h3>버전 관리</h3>
+        <div class="hint">다운로드한 .md에는 작성값이 함께 저장되므로, 나중에 「이전 버전 불러오기」로 그 파일을 올리면 항목이 그대로 복원됩니다.</div>
+        <div class="row">
+          <input type="text" id="verNote" placeholder="버전 메모 (선택)" style="width:200px">
+          <button class="btn ghost small" onclick="saveVersion(true)">버전 저장</button>
+          <button class="btn ghost small" onclick="document.getElementById('mdUpload').click()">이전 버전 불러오기 (.md)</button>
+          <input type="file" id="mdUpload" accept=".md,.txt" style="display:none" onchange="uploadMd(this)">
+        </div>
+        <div id="verList" style="margin-top:10px"><div class="empty">저장된 버전이 없습니다.</div></div>
+      </div>
+    </div>
+    <div>
+      <label style="margin-top:14px">완성된 프롬프트 (.md) <span class="status" id="statusMsg"></span></label>
+      <div class="mdout" id="mdPreview"></div>
+      <div class="row mt">
+        <button class="btn" onclick="downloadMd()">.md 다운로드</button>
+        <button class="btn ghost" onclick="copyMd()">복사</button>
+      </div>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer>이 페이지는 서버 없이 브라우저에서만 동작하며, 페이지를 닫으면 세션의 버전 목록은 사라집니다. 버전은 .md 다운로드로 보관하고, 필요할 때 다시 불러오세요.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- utils ---------- */
+let toastT;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2400)}
+function v(id){return document.getElementById(id).value.trim()}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),3000)}
+
+const FIELDS=['f_topic','f_domain','f_category','f_audience','f_products','f_reference'];
+const REQUIRED={f_topic:'백서 주제',f_domain:'타깃 도메인',f_category:'제품 카테고리',f_audience:'타깃 독자',f_products:'홍보 대상 솔루션'};
+let versions=[]; // {n, ts, note, fields, md}
+
+/* ---------- template ---------- */
+function buildMd(){
+  const g=(id,def)=>v(id)||def;
+  const ref=v('f_reference')||'별도 텍스트 없음 — 이 프롬프트와 함께 업로드된 첨부 파일을 참조하십시오.';
+  return `<!-- WPGEN-META ${JSON.stringify({v:(versions.length?versions[versions.length-1].n:0)+1,saved:new Date().toISOString(),fields:Object.fromEntries(FIELDS.map(id=>[id,v(id)]))}).replace(/--/g,'\\u002d\\u002d')} -->
+# 백서 초안 작성 프롬프트
+
+당신은 엔터프라이즈 클라우드 기업의 시니어 테크니컬 라이터이자 IT
+컨설턴트입니다. 아래 문서 프로필과 함께 업로드된 레퍼런스 파일을
+근거로, 한국 시장을 대상으로 한 공식 B2B 백서의 초안을 처음부터
+작성합니다. 문장은 국내 경제·경영 연구소 보고서의 어휘와 서술 방식을
+따르되, 종결어미는 합쇼체(입니다/합니다)를 사용합니다.
+
+═══════════════ ① 문서 프로필 ═══════════════
+
+백서 주제: ${g('f_topic','(미작성)')}
+타깃 도메인: ${g('f_domain','(미작성)')}
+제품 카테고리: ${g('f_category','(미작성)')}
+타깃 독자: ${g('f_audience','(미작성)')}
+홍보 대상 자사 제품/솔루션 (표기 그대로 사용):
+${g('f_products','(미작성)')}
+
+레퍼런스 정보 (Solution·Reference 섹션의 근거 자료):
+${ref}
+
+※ 이 프롬프트와 함께 업로드된 파일들은 모두 근거 자료입니다.
+Solution과 Reference 섹션은 반드시 위 레퍼런스 정보와 첨부 파일만을
+근거로 작성하며, 기재되지 않은 세부 내용(수치, 고객명, 구축 범위 등)을
+임의로 생성하지 않습니다.
+
+═══════════════ ② 백서 필수 구조 ═══════════════
+
+초안은 아래 구조를 순서대로 갖추어야 합니다.
+
+  1. Executive Summary — 목적, 독자, 핵심 메시지를 반 페이지 내외로
+     제시합니다.
+  2. Trend #1–3 — 타깃 도메인에서 현재 가장 크게 논의되거나 우려되는
+     동향을 다룹니다. 한국 시장의 해당 업계 독자에게 시의성 있게
+     느껴져야 하며, 범용적인 글로벌 상투 문구는 결함으로 간주합니다.
+  3. Painpoint #1–3 — 타깃 독자가 실제로 겪는 구체적 문제를 다루며,
+     각 항목은 최소 하나의 Trend와 명시적으로 연결되어야 합니다.
+  4. Solution #1–3 — 각 항목은 특정 Painpoint를 직접 해소해야 하며,
+     홍보 대상 자사 제품이 해결의 중심이어야 합니다. 파트너 제품이
+     레퍼런스 자료에 등장하는 경우 역할 경계를 정확히 서술합니다.
+  5. Reference #1–2 — 실제 구축 아키텍처 또는 실 구현 사례를 다루며,
+     모든 내용은 레퍼런스 정보와 첨부 파일에서 추적 가능해야 합니다.
+
+연결 규칙: Trend → Painpoint → Solution은 추적 가능한 사슬을 이뤄야
+합니다. 근거가 되는 Trend가 없는 Painpoint, 해소할 Painpoint가 없는
+Solution은 작성하지 않습니다.
+
+═══════════════ ③ 어휘·문장 스타일 기준 ═══════════════
+
+1. 종결어미 — 합쇼체 통일
+- 서술형 문장은 "~입니다 / ~합니다 / ~됩니다 / ~있습니다"로 종결합니다.
+  "~이다 / ~한다 / ~됨 / ~임 / ~중" 등의 종결은 사용하지 않습니다.
+  · "성장할 것으로 전망된다" → "성장할 것으로 전망됩니다"
+  · "수요가 증가 중" → "수요가 증가하고 있습니다"
+
+2. 서술 동사 — 객관적·분석적 술어 선택
+판단과 전망은 단정하지 않고 분석 주체를 숨긴 술어로 표현합니다.
+- 사실 보고: "~로 나타났습니다", "~로 조사됐습니다", "~를 기록했습니다"
+- 분석 결과: "~로 분석됩니다", "~로 판단됩니다", "~로 풀이됩니다"
+- 전망: "~로 전망됩니다", "~로 예상됩니다", "~할 것으로 보입니다"
+- 출처 인용: "[기관명]에 따르면 ~", "[자료명] 기준 ~"
+피해야 할 술어: "~라고 생각합니다", "~인 것 같습니다" 등 주관적 표현.
+
+3. 동작·변화의 어휘 — 한자어 기반 압축 표현
+일상어 대신 보고서 관용 어휘를 사용합니다.
+- "커지고 있습니다" → "확대되고 있습니다 / 가속화되고 있습니다"
+- "새로 떠오르고 있습니다" → "부상하고 있습니다"
+- "이끌고 있습니다" → "견인하고 있습니다"
+- "~ 때문입니다" → "~에 기인합니다"
+- "결국 ~ 문제입니다" → "~ 이슈로 귀결됩니다"
+- "넘습니다 / 밑돕니다" → "상회합니다 / 하회합니다"
+- "바뀌고 있습니다" → "전환되고 있습니다"
+- "한쪽에 몰려 있습니다" → "편중되어 있습니다"
+- "자리를 잡았습니다" → "입지를 확보했습니다"
+- 상태·흐름을 나타내는 명사를 활용합니다: 수준, 양상, 추세, 기조,
+  국면, 여건, 요인, 저해요인, 발전방향
+
+4. 수치·비교의 서술 방식
+- 시점과 기준을 문장 안에 명시합니다: "2025년 기준", "전년 대비",
+  "연평균(CAGR) ~%", "약 ~%p 증가", "전체의 ~%를 차지합니다"
+- 정도 표현은 데이터와 절제된 부사로 합니다: "다소", "비교적", "크게",
+  "급격히", "가파르게". 과장 수식어(매우, 엄청난, 혁신적인, 압도적인,
+  획기적인)는 사용하지 않습니다.
+- 통계·수치는 출처가 확인되는 것만 사용합니다. 레퍼런스 자료에 없는
+  외부 통계를 쓸 경우 출처 기관과 연도를 함께 명시하고, 확신이 없으면
+  본문에 넣지 말고 문서 말미에 "출처 확인 필요 항목"으로 따로
+  나열합니다.
+
+5. 연결어와 문장 호흡
+- 문장 간 전환은 보고서 관용 연결어를 사용합니다: "다만,", "한편,",
+  "특히,", "아울러,", "이에 따라", "이러한 가운데", "반면,"
+- 구조를 안내하는 전환어(다음으로, 마지막으로 등)와 상투적 서두,
+  연속 문장의 기계적 병렬 구조, AI 특유의 과도한 완곡 표현은
+  사용하지 않습니다.
+- 대등한 항목의 나열은 가운뎃점을 활용해 압축합니다:
+  "도입·운영·활용", "비용 절감·고객 경험 개선·프로세스 효율화"
+- 마케팅·광고성 문구는 사용하지 않으며, 자사 제품의 강점은 사실
+  진술의 형태로만 서술합니다.
+
+6. 용어 표기
+- 전문 용어는 첫 등장 시 "한글 용어(영문 또는 약어)" 형태로 표기하고
+  이후 일관되게 사용합니다. 예: "가상화(Virtualization)", "서비스형
+  인프라(IaaS)"
+- 문서 프로필과 레퍼런스 자료에 쓰인 제품명·기술 용어의 표기는
+  그대로 사용합니다.
+
+═══════════════ ④ 작성 절차 ═══════════════
+
+1. 개요 보고: 본문 작성 전에 섹션별 핵심 논지(Trend 3개, Painpoint
+   3개와 각각의 Trend 연결, Solution 3개와 각각의 Painpoint 연결,
+   Reference 후보)를 간결한 불릿으로 먼저 제시하고 승인을 기다립니다.
+2. 승인 후 본문을 ② 구조와 ③ 스타일 기준에 따라 작성합니다.
+3. 자체 점검: 출력 전에 아래를 확인해 결과를 간결하게 보고합니다.
+   - 모든 수치·통계·고유명사가 레퍼런스 자료 또는 명시된 출처에서
+     추적 가능한지 확인합니다.
+   - Trend → Painpoint → Solution 연결이 본문 문장으로 명시되어
+     있는지 확인합니다.
+   - 서술형 문장이 모두 합쇼체로 종결되고, 과장 수식어가 없는지
+     확인합니다.
+
+═══════════════ ⑤ 출력 형식 ═══════════════
+
+1. (1단계 실행 시) 섹션별 개요 — 승인 대기
+2. (2단계 실행 시) 백서 초안 전문 — 바로 붙여넣기 가능, 본문 내 주석 금지
+3. 자체 점검 결과 (간결하게)
+4. 출처 확인 필요 항목 (있는 경우)
+`;
+}
+
+function renderMd(){
+  document.getElementById('mdPreview').textContent=buildMd();
+  const miss=Object.keys(REQUIRED).filter(id=>!v(id));
+  Object.keys(REQUIRED).forEach(id=>document.getElementById(id).classList.toggle('reqmiss',!v(id)));
+  const s=document.getElementById('statusMsg');
+  if(miss.length){s.textContent='(필수 미작성: '+miss.map(id=>REQUIRED[id]).join(', ')+')';s.className='status miss';}
+  else{s.textContent='(필수 항목 작성 완료)';s.className='status ok';}
+}
+FIELDS.forEach(id=>document.getElementById(id).addEventListener('input',renderMd));
+renderMd();
+
+function guardRequired(){
+  const miss=Object.keys(REQUIRED).filter(id=>!v(id));
+  if(miss.length){toast('필수 항목을 먼저 작성하세요: '+miss.map(id=>REQUIRED[id]).join(', '));return false}
+  return true;
+}
+
+/* ---------- versioning ---------- */
+function fmt(d){d=new Date(d);const p=x=>String(x).padStart(2,'0');
+  return `${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
+function saveVersion(showToast){
+  if(!guardRequired())return null;
+  const fields=Object.fromEntries(FIELDS.map(id=>[id,v(id)]));
+  const last=versions[versions.length-1];
+  if(last&&JSON.stringify(last.fields)===JSON.stringify(fields)){
+    if(showToast)toast('마지막 버전과 작성값이 동일합니다');
+    return last;
+  }
+  const ver={n:(last?last.n:0)+1, ts:new Date(),
+    note:v('verNote')||'(메모 없음)', fields, md:buildMd()};
+  versions.push(ver);
+  document.getElementById('verNote').value='';
+  renderVersions();
+  if(showToast)toast('v'+ver.n+' 버전을 저장했습니다');
+  return ver;
+}
+function renderVersions(){
+  const box=document.getElementById('verList');
+  if(!versions.length){box.innerHTML='<div class="empty">저장된 버전이 없습니다.</div>';return}
+  box.innerHTML=versions.slice().reverse().map(x=>
+    `<div class="ver"><span class="vn">v${x.n}</span>
+     <span class="note">${x.note.replace(/</g,'&lt;')}</span>
+     <span class="ts">${fmt(x.ts)}</span>
+     <button onclick="loadVersion(${x.n})">불러오기</button>
+     <button onclick="downloadVersion(${x.n})">다운로드</button></div>`).join('');
+}
+function loadVersion(n){
+  const x=versions.find(q=>q.n===n);if(!x)return;
+  FIELDS.forEach(id=>document.getElementById(id).value=x.fields[id]||'');
+  renderMd();toast('v'+n+' 작성값을 불러왔습니다');
+}
+function downloadVersion(n){
+  const x=versions.find(q=>q.n===n);if(!x)return;
+  dl(new Blob([x.md],{type:'text/markdown'}),fname(x.fields.f_topic,x.n));
+  toast('v'+n+'을 다운로드했습니다');
+}
+function fname(topic,n){
+  const t=(topic||'백서').replace(/[\\/:*?"<>|\s]+/g,'_').slice(0,30);
+  return `백서생성프롬프트_${t}_v${n}.md`;
+}
+function downloadMd(){
+  const ver=saveVersion(false);
+  if(!ver)return;
+  dl(new Blob([ver.md],{type:'text/markdown'}),fname(ver.fields.f_topic,ver.n));
+  toast('v'+ver.n+'으로 저장·다운로드했습니다');
+}
+function copyMd(){
+  if(!guardRequired())return;
+  navigator.clipboard.writeText(buildMd()).then(()=>toast('프롬프트가 복사되었습니다'))
+    .catch(()=>toast('복사 실패 — 직접 선택해 복사하세요'));
+}
+
+/* ---------- upload old md ---------- */
+function uploadMd(input){
+  const f=input.files[0];input.value='';
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    const text=r.result;
+    const m=text.match(/<!--\s*WPGEN-META\s*(\{[\s\S]*?\})\s*-->/);
+    if(!m){toast('작성값 정보를 찾지 못했습니다 — 이 페이지에서 다운로드한 .md인지 확인하세요');return}
+    try{
+      const meta=JSON.parse(m[1].replace(/\\u002d\\u002d/g,'--'));
+      FIELDS.forEach(id=>document.getElementById(id).value=(meta.fields&&meta.fields[id])||'');
+      renderMd();
+      // register as version snapshot
+      const last=versions[versions.length-1];
+      versions.push({n:(last?last.n:0)+1, ts:new Date(),
+        note:'가져옴: '+f.name.slice(0,24), 
+        fields:Object.fromEntries(FIELDS.map(id=>[id,v(id)])), md:buildMd()});
+      renderVersions();
+      toast(f.name+'의 작성값을 복원했습니다');
+    }catch(e){toast('작성값 복원에 실패했습니다 — 파일이 수정되었을 수 있습니다')}
+  };
+  r.readAsText(f);
+}
+</script>
+</body>
+</html>
